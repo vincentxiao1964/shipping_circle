@@ -48,12 +48,13 @@
       class="card"
       style="margin-top: 16rpx;"
       wx:for="{{related}}"
+      wx:for-item="req"
       wx:key="id"
-      data-id="{{item.id}}"
+      data-id="{{req.id}}"
       bindtap="onTapRequest"
     >
-      <view style="font-weight: 600;">{{item.title}}</view>
-      <view class="muted" style="margin-top: 8rpx;">{{item.tags && item.tags.length > 0 ? item.tags.join(", ") : ""}}</view>
+      <view style="font-weight: 600;">{{req.title}}</view>
+      <view class="muted" style="margin-top: 8rpx;">{{req.tags && req.tags.length > 0 ? req.tags.join(", ") : ""}}</view>
     </view>
   </view>
 </view>

@@ -23,6 +23,7 @@ Page({
     title: "",
     companyName: "",
     tagsInput: "",
+    businesses: [] as string[],
     content: "",
     loading: false
   },
@@ -30,9 +31,11 @@ Page({
     syncPageI18n(this, I18N_KEYS);
     const companyName = query.companyName ? String(query.companyName) : "";
     const business = query.business ? String(query.business) : "";
+    const tagsInput = business ? business : this.data.tagsInput;
     this.setData({
       companyName,
-      tagsInput: business ? business : this.data.tagsInput
+      tagsInput,
+      businesses: parseBusinesses(tagsInput)
     });
   },
   onShow() {
@@ -50,7 +53,22 @@ Page({
     this.setData({ content: e.detail.value });
   },
   onInputTags(e: WechatMiniprogram.Input) {
-    this.setData({ tagsInput: e.detail.value });
+    const tagsInput = e.detail.value;
+    this.setData({ tagsInput, businesses: parseBusinesses(tagsInput) });
+  },
+  onTapRemoveBusiness(e: WechatMiniprogram.BaseEvent) {
+    const business = (e.currentTarget as any)?.dataset?.business as string | undefined;
+    if (!business) return;
+    const next = this.data.businesses.filter((x) => x !== business);
+    this.setData({ businesses: next, tagsInput: toTagsInput(next) });
+  },
+  addBusiness(business: string) {
+    const b = String(business || "").trim();
+    if (!b) return;
+    const next = [...this.data.businesses];
+    if (!next.includes(b)) next.push(b);
+    const limited = next.slice(0, 10);
+    this.setData({ businesses: limited, tagsInput: toTagsInput(limited) });
   },
   onTapPickTags() {
     listPopularTags({ limit: 12 })
@@ -59,15 +77,22 @@ Page({
         wx.showActionSheet({
           itemList: options,
           success: (res) => {
-            if (res.tapIndex === 0) return;
+            if (res.tapIndex === 0) {
+              wx.showModal({
+                title: t("request.tagsCustom"),
+                editable: true,
+                placeholderText: t("request.tags"),
+                success: (r) => {
+                  if (!r.confirm) return;
+                  const value = String((r as any).content || "").trim();
+                  this.addBusiness(value);
+                }
+              });
+              return;
+            }
             const chosen = items[res.tapIndex - 1];
             if (!chosen?.tag) return;
-            const existing = this.data.tagsInput
-              .split(",")
-              .map((x) => x.trim())
-              .filter(Boolean);
-            if (!existing.includes(chosen.tag)) existing.push(chosen.tag);
-            this.setData({ tagsInput: existing.slice(0, 10).join(", ") });
+            this.addBusiness(chosen.tag);
           }
         });
       })
@@ -84,11 +109,7 @@ Page({
     const title = this.data.title.trim();
     const companyName = this.data.companyName.trim();
     const content = this.data.content.trim();
-    const tags = this.data.tagsInput
-      .split(",")
-      .map((x) => x.trim())
-      .filter(Boolean)
-      .slice(0, 10);
+    const tags = parseBusinesses(this.data.tagsInput);
     if (!content) {
       wx.showToast({ title: t("common.failed"), icon: "none" });
       return;
@@ -107,3 +128,20 @@ Page({
       });
   }
 });
+
+function parseBusinesses(tagsInput: string): string[] {
+  const raw = String(tagsInput || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+  const uniq: string[] = [];
+  for (const x of raw) {
+    if (!uniq.includes(x)) uniq.push(x);
+    if (uniq.length >= 10) break;
+  }
+  return uniq;
+}
+
+function toTagsInput(items: string[]) {
+  return (items || []).filter(Boolean).slice(0, 10).join(", ");
+}

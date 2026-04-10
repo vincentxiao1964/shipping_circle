@@ -28,6 +28,13 @@
     <button size="mini" style="margin-top: 12rpx;" bindtap="onTapPickTags">
       {{i18n["request.tagsPick"]}}
     </button>
+    <view class="muted" style="margin-top: 12rpx;" wx:if="{{businesses.length > 0}}">
+      <block wx:for="{{businesses}}" wx:for-item="b" wx:key="*this">
+        <button size="mini" style="margin-right: 12rpx; margin-top: 8rpx;" data-business="{{b}}" catchtap="onTapRemoveBusiness">
+          {{b}} ×
+        </button>
+      </block>
+    </view>
     <view class="muted" style="margin-top: 12rpx;">{{i18n["request.content"]}}</view>
     <textarea
       style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx; min-height: 240rpx;"

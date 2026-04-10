@@ -8,6 +8,7 @@ const I18N_KEYS = [
   "company.searchHint",
   "company.empty",
   "company.create",
+  "company.createRequest",
   "company.follow",
   "company.unfollow",
   "common.failed",
@@ -61,6 +62,13 @@ Page({
     const id = (e.currentTarget as any)?.dataset?.id as string | undefined;
     if (!id) return;
     wx.navigateTo({ url: `/pages/company-detail/index?id=${encodeURIComponent(id)}` });
+  },
+  onTapCreateRequest(e: WechatMiniprogram.BaseEvent) {
+    const companyName = (e.currentTarget as any)?.dataset?.companyName as string | undefined;
+    const business = (e.currentTarget as any)?.dataset?.business as string | undefined;
+    wx.navigateTo({
+      url: `/pages/request-create/index?companyName=${encodeURIComponent(companyName || "")}&business=${encodeURIComponent(business || "")}`
+    });
   },
   onTapFollowCompany(e: WechatMiniprogram.BaseEvent) {
     const id = (e.currentTarget as any)?.dataset?.id as string | undefined;

@@ -46,7 +46,15 @@
     </view>
     <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.roles && item.roles.length > 0}}">
       <block wx:for="{{item.roles}}" wx:for-item="r" wx:key="business">
-        {{r.business}}·{{r.title}}
+        <button
+          size="mini"
+          style="margin-right: 12rpx; margin-top: 8rpx;"
+          data-company-name="{{item.name}}"
+          data-business="{{r.business}}"
+          catchtap="onTapCreateRequest"
+        >
+          {{r.business}}：{{i18n["company.createRequest"]}}
+        </button>
       </block>
     </view>
   </view>
