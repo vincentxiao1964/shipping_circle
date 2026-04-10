@@ -1,0 +1,22 @@
+<view class="container">
+  <view class="card">
+    <view style="font-weight: 600;">{{i18n["tools.title"]}}</view>
+    <view class="muted" style="margin-top: 8rpx;">{{i18n["tools.subtitle"]}}</view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;" data-key="search" bindtap="onTapEntry">
+    <view style="font-weight: 600;">{{i18n["tools.entry.search"]}}</view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;" data-key="companyFollowing" bindtap="onTapEntry">
+    <view style="font-weight: 600;">{{i18n["tools.entry.companyFollowing"]}}</view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;" data-key="intros" bindtap="onTapEntry">
+    <view style="font-weight: 600;">{{i18n["tools.entry.intros"]}}</view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;" data-key="score" bindtap="onTapEntry">
+    <view style="font-weight: 600;">{{i18n["tools.entry.score"]}}</view>
+  </view>
+</view>

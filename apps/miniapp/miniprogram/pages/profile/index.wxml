@@ -1,0 +1,84 @@
+<view class="container">
+  <view class="card">
+    <view style="font-weight: 600;">{{i18n["me.title"]}}</view>
+    <view class="muted" style="margin-top: 8rpx;">{{i18n["me.subtitle"]}}</view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view class="row">
+      <view>
+        <view style="font-weight: 600;">{{i18n["me.userId"]}}</view>
+        <view class="muted" style="margin-top: 8rpx;">
+          {{userId || "-"}}
+        </view>
+      </view>
+      <button size="mini" type="{{isAuthed ? 'default' : 'primary'}}" bindtap="onTapAuth">
+        {{isAuthed ? i18n["me.logout"] : i18n["me.login"]}}
+      </button>
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view class="row">
+      <view style="font-weight: 600;">{{i18n["me.points"]}}</view>
+      <view style="font-weight: 600;">{{points}}</view>
+    </view>
+    <view class="row" style="margin-top: 12rpx;">
+      <view class="muted">{{i18n["me.introSuccess"]}}</view>
+      <view>{{introSuccessCount}}</view>
+    </view>
+    <view class="row" style="margin-top: 12rpx;">
+      <view class="muted">{{i18n["me.introFail"]}}</view>
+      <view>{{introFailCount}}</view>
+    </view>
+    <view class="muted" style="margin-top: 12rpx;">
+      {{i18n["me.skills"]}}：
+      <block wx:if="{{topTags.length > 0}}">
+        <block wx:for="{{topTags}}" wx:key="tag">
+          {{item.tag}}({{item.count}})
+        </block>
+      </block>
+      <block wx:else>-</block>
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view style="font-weight: 600;">{{i18n["me.apiBaseUrl"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{apiBaseUrlInput}}"
+      bindinput="onInputApiBaseUrl"
+      placeholder="{{i18n['me.apiBaseUrlHint']}}"
+    />
+    <button size="mini" type="primary" style="margin-top: 12rpx;" bindtap="onTapSaveApiBaseUrl">
+      {{i18n["me.save"]}}
+    </button>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view style="font-weight: 600;">{{i18n["me.displayName"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{displayNameInput}}"
+      bindinput="onInputDisplayName"
+      placeholder="{{i18n['me.displayNameHint']}}"
+    />
+    <button size="mini" type="primary" style="margin-top: 12rpx;" bindtap="onTapSaveDisplayName">
+      {{i18n["me.saveDisplayName"]}}
+    </button>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view class="row">
+      <view>
+        <view style="font-weight: 600;">{{i18n["me.language"]}}</view>
+        <view class="muted" style="margin-top: 8rpx;">
+          {{currentLanguageText}}
+        </view>
+      </view>
+      <button size="mini" bindtap="onTapSwitchLanguage">
+        {{i18n["me.switchLanguage"]}}
+      </button>
+    </view>
+  </view>
+</view>

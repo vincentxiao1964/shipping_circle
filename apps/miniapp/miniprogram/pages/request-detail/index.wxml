@@ -1,0 +1,84 @@
+<view class="container" wx:if="{{item}}">
+  <view class="card">
+    <view class="row">
+      <view style="font-weight: 600;">{{item.title}}</view>
+      <button size="mini" bindtap="onTapRefresh">{{i18n["common.refresh"]}}</button>
+    </view>
+    <view class="muted" style="margin-top: 8rpx;">{{item.ownerDisplayName || item.ownerId}}</view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.companyName}}">
+      {{i18n["request.companyName"]}}：{{item.companyName}}
+    </view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.tags && item.tags.length > 0}}">
+      {{i18n["request.tags"]}}：{{item.tags.join(", ")}}
+    </view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.status === 'closed'}}">
+      {{i18n["request.closed"]}}
+    </view>
+    <view style="margin-top: 12rpx; white-space: pre-wrap;">{{item.content}}</view>
+    <view class="row" style="margin-top: 12rpx;">
+      <view class="muted" wx:if="{{item.isMine}}">{{i18n["request.myRequest"]}}</view>
+      <view />
+      <button size="mini" wx:if="{{item.isMine}}" bindtap="onTapEdit">
+        {{i18n["request.edit"]}}
+      </button>
+      <button
+        size="mini"
+        wx:if="{{item.isMine}}"
+        style="margin-left: 12rpx;"
+        type="{{item.status === 'closed' ? 'primary' : 'default'}}"
+        bindtap="onTapToggleStatus"
+      >
+        {{item.status === 'closed' ? i18n["request.reopen"] : i18n["request.close"]}}
+      </button>
+      <button size="mini" type="primary" wx:if="{{!item.isMine && item.status !== 'closed'}}" bindtap="onTapIntroduce">
+        {{i18n["request.introduce"]}}
+      </button>
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view style="font-weight: 600;">{{i18n["request.introductions"]}} ({{item.introductions.length}})</view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.introductions.length === 0}}">-</view>
+
+    <view
+      class="card"
+      style="margin-top: 16rpx;"
+      wx:for="{{item.introductions}}"
+      wx:for-item="intro"
+      wx:key="id"
+    >
+      <view class="row">
+        <view style="font-weight: 600;">{{intro.introducerDisplayName || intro.introducerId}}</view>
+        <view class="muted" style="font-size: 24rpx;">
+          {{intro.outcome ? (intro.outcome === 'success' ? i18n['request.success'] : i18n['request.fail']) : "-"}}
+        </view>
+      </view>
+      <view class="muted" style="margin-top: 8rpx; white-space: pre-wrap;">{{intro.note}}</view>
+      <view class="row" style="margin-top: 12rpx;" wx:if="{{item.isMine && !intro.resolvedAt}}">
+        <button
+          size="mini"
+          type="primary"
+          data-id="{{intro.id}}"
+          data-outcome="success"
+          bindtap="onTapResolve"
+        >
+          {{i18n["request.resolveSuccess"]}}
+        </button>
+        <button
+          size="mini"
+          data-id="{{intro.id}}"
+          data-outcome="fail"
+          bindtap="onTapResolve"
+        >
+          {{i18n["request.resolveFail"]}}
+        </button>
+      </view>
+    </view>
+  </view>
+</view>
+
+<view class="container" wx:else>
+  <view class="card">
+    <view class="muted">{{i18n["common.notFound"]}}</view>
+  </view>
+</view>

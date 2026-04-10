@@ -1,0 +1,42 @@
+<view class="container">
+  <view class="card">
+    <view class="row">
+      <view style="font-weight: 600;">{{i18n["messages.title"]}}</view>
+      <view>
+        <button size="mini" bindtap="onTapRefresh">{{i18n["common.refresh"]}}</button>
+        <button size="mini" style="margin-left: 12rpx;" bindtap="onTapMarkAllRead">
+          {{i18n["messages.markAllRead"]}}
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <view
+    class="card"
+    style="margin-top: 16rpx;"
+    wx:for="{{items}}"
+    wx:key="id"
+    data-id="{{item.id}}"
+    data-type="{{item.type}}"
+    data-post-id="{{item.postId}}"
+    data-from-user-id="{{item.fromUserId}}"
+    data-request-id="{{item.requestId}}"
+    data-intro-id="{{item.introId}}"
+    bindtap="onTapItem"
+  >
+    <view class="row">
+      <view style="font-weight: 600;">
+        {{item.typeLabel}}
+      </view>
+      <view class="muted" style="font-size: 24rpx;">
+        {{item.readLabel}}
+      </view>
+    </view>
+    <view style="margin-top: 8rpx;">{{item.title}}</view>
+    <view class="muted" style="margin-top: 8rpx; white-space: pre-wrap;">{{item.content}}</view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;" wx:if="{{!loading && items.length === 0}}">
+    <view class="muted">{{i18n["messages.empty"]}}</view>
+  </view>
+</view>

@@ -1,0 +1,25 @@
+<view class="container">
+  <view class="card">
+    <view style="font-weight: 600;">{{i18n["post.title"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{title}}"
+      bindinput="onInputTitle"
+      placeholder="Title / 标题"
+    />
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view style="font-weight: 600;">{{i18n["post.content"]}}</view>
+    <textarea
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx; min-height: 240rpx;"
+      value="{{content}}"
+      bindinput="onInputContent"
+      placeholder="Content / 正文"
+    />
+  </view>
+
+  <button type="primary" style="margin-top: 16rpx;" bindtap="onTapPublish">
+    {{i18n["post.publish"]}}
+  </button>
+</view>

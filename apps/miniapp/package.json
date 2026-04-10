@@ -1,0 +1,17 @@
+{
+  "name": "@shipping-circle/miniapp",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "eslint \"miniprogram/**/*.{ts,js}\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node -e \"process.exit(0)\""
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.33.0",
+    "@typescript-eslint/parser": "^8.33.0",
+    "eslint": "^9.26.0",
+    "miniprogram-api-typings": "^3.12.0",
+    "typescript": "^5.8.3"
+  }
+}

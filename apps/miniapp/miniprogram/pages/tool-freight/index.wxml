@@ -1,0 +1,56 @@
+<view class="container">
+  <view class="card">
+    <view style="font-weight: 600;">{{i18n["tool.freight.title"]}}</view>
+    <view class="muted" style="margin-top: 8rpx;">{{i18n["tool.freight.tip"]}}</view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view class="muted">{{i18n["tool.freight.cbm"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{cbm}}"
+      bindinput="onInputCbm"
+      inputmode="decimal"
+      placeholder="0"
+    />
+    <view class="muted" style="margin-top: 12rpx;">{{i18n["tool.freight.weightKg"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{weightKg}}"
+      bindinput="onInputWeightKg"
+      inputmode="decimal"
+      placeholder="0"
+    />
+    <view class="muted" style="margin-top: 12rpx;">{{i18n["tool.freight.wmRate"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{wmRate}}"
+      bindinput="onInputWmRate"
+      inputmode="decimal"
+      placeholder="0"
+    />
+    <view class="muted" style="margin-top: 12rpx;">{{i18n["tool.freight.fixedFee"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{fixedFee}}"
+      bindinput="onInputFixedFee"
+      inputmode="decimal"
+      placeholder="0"
+    />
+    <view class="row" style="margin-top: 16rpx;">
+      <view />
+      <button size="mini" bindtap="onTapClear">{{i18n["common.clear"]}}</button>
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view class="row">
+      <view class="muted">{{i18n["tool.freight.wm"]}}</view>
+      <view>{{wm}}</view>
+    </view>
+    <view class="row" style="margin-top: 12rpx;">
+      <view class="muted">{{i18n["tool.freight.total"]}}</view>
+      <view style="font-weight: 600;">{{total}}</view>
+    </view>
+  </view>
+</view>

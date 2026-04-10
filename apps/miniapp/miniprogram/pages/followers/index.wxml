@@ -1,0 +1,41 @@
+<view class="container">
+  <view class="card">
+    <view class="row">
+      <view style="font-weight: 600;">{{i18n["followers.title"]}}</view>
+      <button size="mini" bindtap="onTapRefresh">{{i18n["common.refresh"]}}</button>
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;" wx:if="{{!loading && items.length === 0}}">
+    <view class="muted">{{i18n["followers.empty"]}}</view>
+  </view>
+
+  <view
+    class="card"
+    style="margin-top: 16rpx;"
+    wx:for="{{items}}"
+    wx:key="id"
+    data-id="{{item.id}}"
+    bindtap="onTapUser"
+  >
+    <view class="row">
+      <view>
+        <view style="font-weight: 600;">{{item.displayName}}</view>
+        <view class="muted" style="margin-top: 6rpx;">{{item.id}}</view>
+      </view>
+      <button
+        size="mini"
+        wx:if="{{item.canFollow}}"
+        type="{{item.isFollowing ? 'default' : 'primary'}}"
+        data-id="{{item.id}}"
+        catchtap="onTapFollow"
+      >
+        {{item.isFollowing ? i18n["user.unfollow"] : i18n["user.follow"]}}
+      </button>
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;" wx:if="{{!loading && items.length > 0 && !hasMore}}">
+    <view class="muted">{{i18n["common.noMore"]}}</view>
+  </view>
+</view>

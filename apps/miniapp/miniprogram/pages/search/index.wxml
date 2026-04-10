@@ -1,0 +1,61 @@
+<view class="container">
+  <view class="card">
+    <view class="row">
+      <view style="font-weight: 600;">{{i18n["company.searchTitle"]}}</view>
+      <view>
+        <button size="mini" bindtap="onTapRefresh">{{i18n["common.refresh"]}}</button>
+        <button size="mini" type="primary" style="margin-left: 12rpx;" bindtap="onTapCreate">
+          {{i18n["company.create"]}}
+        </button>
+      </view>
+    </view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{q}}"
+      bindinput="onInput"
+      placeholder="{{i18n['company.searchPlaceholder']}}"
+    />
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;" wx:if="{{hintVisible}}">
+    <view class="muted">{{i18n["company.searchHint"]}}</view>
+  </view>
+
+  <view
+    class="card"
+    style="margin-top: 16rpx;"
+    wx:for="{{items}}"
+    wx:key="id"
+    data-id="{{item.id}}"
+    bindtap="onTapCompany"
+  >
+    <view class="row">
+      <view style="font-weight: 600;">{{item.name}}</view>
+      <button
+        size="mini"
+        type="{{item.followedByMe ? 'default' : 'primary'}}"
+        data-id="{{item.id}}"
+        catchtap="onTapFollowCompany"
+      >
+        {{item.followedByMe ? i18n["company.unfollow"] : i18n["company.follow"]}}
+      </button>
+    </view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.region}}">{{item.region}}</view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.tags && item.tags.length > 0}}">
+      {{item.tags.join(", ")}}
+    </view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.roles && item.roles.length > 0}}">
+      <block wx:for="{{item.roles}}" wx:for-item="r" wx:key="business">
+        {{r.business}}·{{r.title}}
+      </block>
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;" wx:if="{{!loading && !hintVisible && items.length === 0}}">
+    <view class="muted">{{i18n["company.empty"]}}</view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;" wx:if="{{!loading && items.length > 0 && !hasMore}}">
+    <view class="muted">{{i18n["common.noMore"]}}</view>
+  </view>
+</view>

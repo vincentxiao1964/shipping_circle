@@ -1,0 +1,36 @@
+<view class="container">
+  <view class="card">
+    <view style="font-weight: 600;">{{i18n["tool.exchange.title"]}}</view>
+    <view class="muted" style="margin-top: 8rpx;">{{i18n["tool.exchange.tip"]}}</view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view class="muted">{{i18n["tool.exchange.amount"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{amount}}"
+      bindinput="onInputAmount"
+      inputmode="decimal"
+      placeholder="0"
+    />
+    <view class="muted" style="margin-top: 12rpx;">{{i18n["tool.exchange.rate"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{rate}}"
+      bindinput="onInputRate"
+      inputmode="decimal"
+      placeholder="0"
+    />
+    <view class="row" style="margin-top: 16rpx;">
+      <view />
+      <button size="mini" bindtap="onTapClear">{{i18n["common.clear"]}}</button>
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view class="row">
+      <view class="muted">{{i18n["tool.exchange.result"]}}</view>
+      <view style="font-weight: 600;">{{result}}</view>
+    </view>
+  </view>
+</view>

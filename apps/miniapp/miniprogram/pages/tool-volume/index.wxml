@@ -1,0 +1,64 @@
+<view class="container">
+  <view class="card">
+    <view style="font-weight: 600;">{{i18n["tool.volume.title"]}}</view>
+    <view class="muted" style="margin-top: 8rpx;">{{i18n["tool.volume.tip"]}}</view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view class="row">
+      <view style="width: 180rpx;" class="muted">{{i18n["tool.volume.lengthCm"]}}</view>
+      <input
+        style="flex: 1; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+        value="{{lengthCm}}"
+        bindinput="onInputLength"
+        inputmode="decimal"
+        placeholder="0"
+      />
+    </view>
+    <view class="row" style="margin-top: 12rpx;">
+      <view style="width: 180rpx;" class="muted">{{i18n["tool.volume.widthCm"]}}</view>
+      <input
+        style="flex: 1; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+        value="{{widthCm}}"
+        bindinput="onInputWidth"
+        inputmode="decimal"
+        placeholder="0"
+      />
+    </view>
+    <view class="row" style="margin-top: 12rpx;">
+      <view style="width: 180rpx;" class="muted">{{i18n["tool.volume.heightCm"]}}</view>
+      <input
+        style="flex: 1; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+        value="{{heightCm}}"
+        bindinput="onInputHeight"
+        inputmode="decimal"
+        placeholder="0"
+      />
+    </view>
+    <view class="row" style="margin-top: 12rpx;">
+      <view style="width: 180rpx;" class="muted">{{i18n["tool.volume.pieces"]}}</view>
+      <input
+        style="flex: 1; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+        value="{{pieces}}"
+        bindinput="onInputPieces"
+        inputmode="numeric"
+        placeholder="1"
+      />
+    </view>
+    <view class="row" style="margin-top: 16rpx;">
+      <view />
+      <button size="mini" bindtap="onTapClear">{{i18n["common.clear"]}}</button>
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view class="row">
+      <view class="muted">{{i18n["tool.volume.cbm"]}}</view>
+      <view style="font-weight: 600;">{{cbm}}</view>
+    </view>
+    <view class="row" style="margin-top: 12rpx;">
+      <view class="muted">{{i18n["tool.volume.volumetricKg"]}}</view>
+      <view style="font-weight: 600;">{{volumetricKg}}</view>
+    </view>
+  </view>
+</view>

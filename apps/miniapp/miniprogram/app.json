@@ -1,0 +1,59 @@
+{
+  "pages": [
+    "pages/home/index",
+    "pages/tools/index",
+    "pages/messages/index",
+    "pages/profile/index",
+    "pages/following/index",
+    "pages/followers/index",
+    "pages/following-list/index",
+    "pages/user/index",
+    "pages/company-create/index",
+    "pages/company-detail/index",
+    "pages/company-following/index",
+    "pages/request-create/index",
+    "pages/request-detail/index",
+    "pages/request-edit/index",
+    "pages/my-introductions/index",
+    "pages/tool-freight/index",
+    "pages/tool-volume/index",
+    "pages/tool-exchange/index",
+    "pages/tool-ports/index",
+    "pages/login/index",
+    "pages/post-create/index",
+    "pages/post-detail/index",
+    "pages/search/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "海运圈",
+    "navigationBarTextStyle": "black",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f7f7f7"
+  },
+  "tabBar": {
+    "color": "#666666",
+    "selectedColor": "#2b6ef2",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "Home/首页"
+      },
+      {
+        "pagePath": "pages/tools/index",
+        "text": "Network/人脉"
+      },
+      {
+        "pagePath": "pages/messages/index",
+        "text": "Msg/消息"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "text": "Me/我的"
+      }
+    ]
+  },
+  "sitemapLocation": "sitemap.json",
+  "style": "v2"
+}

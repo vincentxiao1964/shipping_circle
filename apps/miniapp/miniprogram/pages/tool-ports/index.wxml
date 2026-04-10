@@ -1,0 +1,30 @@
+<view class="container">
+  <view class="card">
+    <view class="row">
+      <view style="font-weight: 600;">{{i18n["tool.ports.title"]}}</view>
+      <button size="mini" bindtap="onTapRefresh">{{i18n["common.refresh"]}}</button>
+    </view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{q}}"
+      bindinput="onInput"
+      placeholder="{{i18n['tool.ports.search']}}"
+    />
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;" wx:if="{{items.length === 0}}">
+    <view class="muted">{{i18n["tool.ports.empty"]}}</view>
+  </view>
+
+  <view
+    class="card"
+    style="margin-top: 16rpx;"
+    wx:for="{{items}}"
+    wx:key="name"
+  >
+    <view style="font-weight: 600;">{{item.name}}</view>
+    <view class="muted" style="margin-top: 8rpx;">
+      {{item.country}} {{item.code || ""}}
+    </view>
+  </view>
+</view>

@@ -1,0 +1,65 @@
+<view class="container" wx:if="{{item}}">
+  <view class="card">
+    <view class="row">
+      <view style="font-weight: 600;">{{item.name}}</view>
+      <view>
+        <button size="mini" bindtap="onTapRefresh">{{i18n["common.refresh"]}}</button>
+        <button
+          size="mini"
+          type="{{item.followedByMe ? 'default' : 'primary'}}"
+          style="margin-left: 12rpx;"
+          bindtap="onTapToggleFollow"
+        >
+          {{item.followedByMe ? i18n["company.unfollow"] : i18n["company.follow"]}}
+        </button>
+      </view>
+    </view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.region}}">{{item.region}}</view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.tags && item.tags.length > 0}}">
+      {{i18n["company.tags"]}}：{{item.tags.join(", ")}}
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view style="font-weight: 600;">{{i18n["company.roles"]}} ({{item.roles.length}})</view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.roles.length === 0}}">-</view>
+
+    <view class="card" style="margin-top: 16rpx;" wx:for="{{item.roles}}" wx:for-item="r" wx:key="business">
+      <view class="row">
+        <view style="font-weight: 600;">{{r.business}}</view>
+        <view class="muted">{{r.title}}</view>
+      </view>
+      <button
+        size="mini"
+        type="primary"
+        style="margin-top: 12rpx;"
+        data-business="{{r.business}}"
+        bindtap="onTapCreateRequest"
+      >
+        {{i18n["company.createRequest"]}}
+      </button>
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view style="font-weight: 600;">{{i18n["company.relatedRequests"]}} ({{related.length}})</view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{related.length === 0}}">-</view>
+    <view
+      class="card"
+      style="margin-top: 16rpx;"
+      wx:for="{{related}}"
+      wx:key="id"
+      data-id="{{item.id}}"
+      bindtap="onTapRequest"
+    >
+      <view style="font-weight: 600;">{{item.title}}</view>
+      <view class="muted" style="margin-top: 8rpx;">{{item.tags && item.tags.length > 0 ? item.tags.join(", ") : ""}}</view>
+    </view>
+  </view>
+</view>
+
+<view class="container" wx:else>
+  <view class="card">
+    <view class="muted">{{i18n["common.notFound"]}}</view>
+  </view>
+</view>

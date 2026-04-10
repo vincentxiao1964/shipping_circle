@@ -1,0 +1,43 @@
+<view class="container">
+  <view class="card">
+    <view style="font-weight: 600;">{{i18n["company.createTitle"]}}</view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view class="muted">{{i18n["company.name"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{name}}"
+      bindinput="onInputName"
+      placeholder="{{i18n['company.name']}}"
+    />
+
+    <view class="muted" style="margin-top: 12rpx;">{{i18n["company.region"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{region}}"
+      bindinput="onInputRegion"
+      placeholder="{{i18n['company.region']}}"
+    />
+
+    <view class="muted" style="margin-top: 12rpx;">{{i18n["company.tags"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{tagsInput}}"
+      bindinput="onInputTags"
+      placeholder="{{i18n['company.tags']}}"
+    />
+
+    <view class="muted" style="margin-top: 12rpx;">{{i18n["company.businesses"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{businessesInput}}"
+      bindinput="onInputBusinesses"
+      placeholder="{{i18n['company.businesses']}}"
+    />
+
+    <button type="primary" style="margin-top: 16rpx;" bindtap="onTapPublish">
+      {{i18n["company.publish"]}}
+    </button>
+  </view>
+</view>

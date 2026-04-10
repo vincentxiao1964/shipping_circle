@@ -1,0 +1,66 @@
+<view class="container">
+  <view class="card">
+    <view class="row">
+      <view>
+        <view style="font-weight: 600;">{{profile ? profile.displayName : "-"}}</view>
+        <view class="muted" style="margin-top: 8rpx;">{{id}}</view>
+      </view>
+      <button
+        size="mini"
+        wx:if="{{id && id !== meUserId}}"
+        type="{{isFollowing ? 'default' : 'primary'}}"
+        bindtap="onTapFollow"
+      >
+        {{isFollowing ? i18n["user.unfollow"] : i18n["user.follow"]}}
+      </button>
+    </view>
+    <view class="row" style="margin-top: 12rpx;">
+      <button size="mini" bindtap="onTapFollowers">
+        {{followerCountText}}
+      </button>
+      <button size="mini" style="margin-left: 12rpx;" bindtap="onTapFollowing">
+        {{followingCountText}}
+      </button>
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view class="row">
+      <view style="font-weight: 600;">{{i18n["user.posts"]}}</view>
+      <button size="mini" bindtap="onTapRefresh">{{i18n["common.refresh"]}}</button>
+    </view>
+  </view>
+
+  <view
+    class="card"
+    style="margin-top: 16rpx;"
+    wx:for="{{posts}}"
+    wx:key="id"
+    data-id="{{item.id}}"
+    bindtap="onTapPost"
+  >
+    <view style="font-weight: 600;">{{item.title}}</view>
+    <view class="muted" style="margin-top: 8rpx;">{{item.content}}</view>
+    <view class="row" style="margin-top: 12rpx;">
+      <view class="muted">
+        {{item.commentCount}} {{i18n["post.commentsLabel"]}} · {{item.likeCount}} {{i18n["post.likesLabel"]}}
+      </view>
+      <button
+        size="mini"
+        type="{{item.likedByMe ? 'default' : 'primary'}}"
+        data-id="{{item.id}}"
+        catchtap="onTapLike"
+      >
+        {{item.likedByMe ? i18n["post.unlike"] : i18n["post.like"]}}
+      </button>
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;" wx:if="{{!loading && posts.length === 0}}">
+    <view class="muted">{{i18n["post.empty"]}}</view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;" wx:if="{{!loading && posts.length > 0 && !hasMore}}">
+    <view class="muted">{{i18n["common.noMore"]}}</view>
+  </view>
+</view>

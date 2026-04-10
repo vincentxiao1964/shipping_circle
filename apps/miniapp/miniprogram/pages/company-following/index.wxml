@@ -1,0 +1,47 @@
+<view class="container">
+  <view class="card">
+    <view class="row">
+      <view style="font-weight: 600;">{{i18n["company.followingTitle"]}}</view>
+      <button size="mini" bindtap="onTapRefresh">{{i18n["common.refresh"]}}</button>
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;" wx:if="{{!loading && items.length === 0}}">
+    <view class="muted">{{i18n["company.followingEmpty"]}}</view>
+  </view>
+
+  <view
+    class="card"
+    style="margin-top: 16rpx;"
+    wx:for="{{items}}"
+    wx:key="id"
+    data-id="{{item.id}}"
+    bindtap="onTapCompany"
+  >
+    <view class="row">
+      <view style="font-weight: 600;">{{item.name}}</view>
+      <button size="mini" data-id="{{item.id}}" catchtap="onTapUnfollow">{{i18n["company.unfollow"]}}</button>
+    </view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.region}}">{{item.region}}</view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.tags && item.tags.length > 0}}">
+      {{item.tags.join(", ")}}
+    </view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.roles && item.roles.length > 0}}">
+      <block wx:for="{{item.roles}}" wx:for-item="r" wx:key="business">
+        <button
+          size="mini"
+          style="margin-right: 12rpx; margin-top: 8rpx;"
+          data-company-name="{{item.name}}"
+          data-business="{{r.business}}"
+          catchtap="onTapCreateRequest"
+        >
+          {{r.business}}：{{i18n["company.createRequest"]}}
+        </button>
+      </block>
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;" wx:if="{{!loading && items.length > 0 && !hasMore}}">
+    <view class="muted">{{i18n["common.noMore"]}}</view>
+  </view>
+</view>

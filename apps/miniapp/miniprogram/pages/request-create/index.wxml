@@ -1,0 +1,42 @@
+<view class="container">
+  <view class="card">
+    <view style="font-weight: 600;">{{i18n["request.createTitle"]}}</view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view class="muted">{{i18n["request.title"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{title}}"
+      bindinput="onInputTitle"
+      placeholder="{{i18n['request.title']}}"
+    />
+    <view class="muted" style="margin-top: 12rpx;">{{i18n["request.companyName"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{companyName}}"
+      bindinput="onInputCompanyName"
+      placeholder="{{i18n['request.companyName']}}"
+    />
+    <view class="muted" style="margin-top: 12rpx;">{{i18n["request.tags"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{tagsInput}}"
+      bindinput="onInputTags"
+      placeholder="{{i18n['request.tags']}}"
+    />
+    <button size="mini" style="margin-top: 12rpx;" bindtap="onTapPickTags">
+      {{i18n["request.tagsPick"]}}
+    </button>
+    <view class="muted" style="margin-top: 12rpx;">{{i18n["request.content"]}}</view>
+    <textarea
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx; min-height: 240rpx;"
+      value="{{content}}"
+      bindinput="onInputContent"
+      placeholder="{{i18n['request.content']}}"
+    />
+    <button type="primary" style="margin-top: 16rpx;" bindtap="onTapPublish">
+      {{i18n["request.publish"]}}
+    </button>
+  </view>
+</view>

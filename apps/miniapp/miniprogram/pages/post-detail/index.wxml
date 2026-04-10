@@ -1,0 +1,54 @@
+<view class="container" wx:if="{{post}}">
+  <view class="card">
+    <view style="font-weight: 600;">{{post.title}}</view>
+    <view class="row" style="margin-top: 8rpx;">
+      <view class="muted" catchtap="onTapAuthor">{{post.authorDisplayName || post.authorId}}</view>
+      <button
+        size="mini"
+        wx:if="{{post.authorId && post.authorId !== meUserId}}"
+        type="{{post.authorFollowedByMe ? 'default' : 'primary'}}"
+        catchtap="onTapFollow"
+      >
+        {{post.authorFollowedByMe ? i18n["user.unfollow"] : i18n["user.follow"]}}
+      </button>
+    </view>
+    <view style="margin-top: 12rpx; white-space: pre-wrap;">{{post.content}}</view>
+    <view class="row" style="margin-top: 12rpx;">
+      <view class="muted">{{post.likeCount}} {{i18n["post.likesLabel"]}}</view>
+      <button size="mini" type="{{post.likedByMe ? 'default' : 'primary'}}" catchtap="onTapLike">
+        {{post.likedByMe ? i18n["post.unlike"] : i18n["post.like"]}}
+      </button>
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view style="font-weight: 600;">{{i18n["post.comment"]}} ({{post.comments.length}})</view>
+    <view
+      style="margin-top: 12rpx; padding-top: 12rpx; border-top: 1px solid #eeeeee;"
+      wx:for="{{post.comments}}"
+      wx:key="id"
+    >
+      <view style="font-size: 26rpx;">{{item.authorId}}</view>
+      <view class="muted" style="margin-top: 6rpx; white-space: pre-wrap;">{{item.content}}</view>
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view style="font-weight: 600;">{{i18n["post.addComment"]}}</view>
+    <textarea
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx; min-height: 160rpx;"
+      value="{{commentInput}}"
+      bindinput="onInputComment"
+      placeholder="Comment / 评论"
+    />
+    <button type="primary" style="margin-top: 12rpx;" bindtap="onTapAddComment">
+      {{i18n["common.ok"]}}
+    </button>
+  </view>
+</view>
+
+<view class="container" wx:else>
+  <view class="card">
+    <view class="muted">{{i18n["common.notFound"]}}</view>
+  </view>
+</view>
