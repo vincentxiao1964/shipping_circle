@@ -9,6 +9,7 @@ const I18N_KEYS = [
   "request.tags",
   "request.tagsPick",
   "request.tagsCustom",
+  "request.businessRequired",
   "request.content",
   "request.save",
   "common.ok",
@@ -110,6 +111,10 @@ Page({
     const companyName = this.data.companyName.trim();
     const content = this.data.content.trim();
     const tags = parseBusinesses(this.data.tagsInput);
+    if (tags.length === 0) {
+      wx.showToast({ title: t("request.businessRequired"), icon: "none" });
+      return;
+    }
     if (!content) {
       wx.showToast({ title: t("common.failed"), icon: "none" });
       return;

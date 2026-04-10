@@ -12,6 +12,7 @@ const I18N_KEYS = [
   "company.relatedRequests",
   "company.follow",
   "company.unfollow",
+  "company.followersCount",
   "common.refresh",
   "common.failed",
   "common.notFound"
@@ -69,7 +70,8 @@ Page({
           item: {
             ...this.data.item,
             followedByMe: r.following,
-            followerCount: r.followerCount
+            followerCount: r.followerCount,
+            followersText: t("company.followersCount", { count: r.followerCount })
           }
         });
       })
@@ -86,7 +88,8 @@ Page({
     this.setData({ loading: true });
     return getCompany(this.data.id)
       .then((item) => {
-        this.setData({ item });
+        const followerCount = typeof item?.followerCount === "number" ? item.followerCount : 0;
+        this.setData({ item: item ? { ...item, followersText: t("company.followersCount", { count: followerCount }) } : item });
         if (item?.name) {
           return listRequestsPage({ limit: 10, company: item.name }).then((page) => {
             this.setData({ related: page.items });

@@ -7,6 +7,7 @@ const I18N_KEYS = [
   "company.followingEmpty",
   "company.unfollow",
   "company.createRequest",
+  "company.followersCount",
   "common.failed",
   "common.noMore",
   "common.refresh"
@@ -19,7 +20,7 @@ Page({
     locale: "",
     localeVersion: 0,
     i18n: {},
-    items: [] as CompanyListItem[],
+    items: [] as (CompanyListItem & { followersText: string })[],
     cursor: null as string | null,
     hasMore: true,
     loading: false
@@ -85,8 +86,12 @@ Page({
     this.setData({ loading: true });
     return listMyFollowedCompaniesPage({ limit: PAGE_LIMIT })
       .then((page) => {
+        const items = (page?.items ?? []).map((c) => ({
+          ...c,
+          followersText: t("company.followersCount", { count: typeof c.followerCount === "number" ? c.followerCount : 0 })
+        }));
         this.setData({
-          items: page?.items ?? [],
+          items,
           cursor: page?.nextCursor ?? null,
           hasMore: page?.hasMore ?? false
         });
@@ -108,8 +113,12 @@ Page({
     this.setData({ loading: true });
     listMyFollowedCompaniesPage({ limit: PAGE_LIMIT, cursor: this.data.cursor ?? undefined })
       .then((page) => {
+        const more = (page?.items ?? []).map((c) => ({
+          ...c,
+          followersText: t("company.followersCount", { count: typeof c.followerCount === "number" ? c.followerCount : 0 })
+        }));
         this.setData({
-          items: [...this.data.items, ...(page?.items ?? [])],
+          items: [...this.data.items, ...more],
           cursor: page?.nextCursor ?? null,
           hasMore: page?.hasMore ?? false
         });

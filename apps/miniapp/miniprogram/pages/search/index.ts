@@ -18,13 +18,15 @@ const I18N_KEYS = [
 
 const PAGE_LIMIT = 10;
 
+type CompanyRow = CompanyListItem & { followersText: string };
+
 Page({
   data: {
     locale: "",
     localeVersion: 0,
     i18n: {},
     q: "",
-    items: [] as CompanyListItem[],
+    items: [] as CompanyRow[],
     cursor: null as string | null,
     hasMore: true,
     loading: false,
@@ -40,6 +42,10 @@ Page({
   },
   onPullDownRefresh() {
     Promise.resolve(this.loadFirstPage()).finally(() => wx.stopPullDownRefresh());
+  },
+  onUnload() {
+    const timer = (this as any)._debounce as any;
+    if (timer) clearTimeout(timer);
   },
   onReachBottom() {
     this.loadMore();
@@ -82,7 +88,14 @@ Page({
       .then((r) => {
         if (!r) return;
         const next = this.data.items.map((c) =>
-          c.id === id ? { ...c, followedByMe: r.following, followerCount: r.followerCount } : c
+          c.id === id
+            ? {
+                ...c,
+                followedByMe: r.following,
+                followerCount: r.followerCount,
+                followersText: t("company.followersCount", { count: r.followerCount })
+              }
+            : c
         );
         this.setData({ items: next });
       })
@@ -102,7 +115,11 @@ Page({
 
     return listCompaniesPage({ q, limit: PAGE_LIMIT })
       .then((page) => {
-        this.setData({ items: page.items, cursor: page.nextCursor, hasMore: page.hasMore });
+        const items: CompanyRow[] = page.items.map((c) => ({
+          ...c,
+          followersText: t("company.followersCount", { count: typeof c.followerCount === "number" ? c.followerCount : 0 })
+        }));
+        this.setData({ items, cursor: page.nextCursor, hasMore: page.hasMore });
       })
       .catch(() => {
         wx.showToast({ title: t("common.failed"), icon: "none" });
@@ -123,7 +140,11 @@ Page({
 
     listCompaniesPage({ q, limit: PAGE_LIMIT, cursor })
       .then((page) => {
-        this.setData({ items: [...this.data.items, ...page.items], cursor: page.nextCursor, hasMore: page.hasMore });
+        const more: CompanyRow[] = page.items.map((c) => ({
+          ...c,
+          followersText: t("company.followersCount", { count: typeof c.followerCount === "number" ? c.followerCount : 0 })
+        }));
+        this.setData({ items: [...this.data.items, ...more], cursor: page.nextCursor, hasMore: page.hasMore });
       })
       .catch(() => {
         wx.showToast({ title: t("common.failed"), icon: "none" });

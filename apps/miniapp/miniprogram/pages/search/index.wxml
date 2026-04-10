@@ -41,6 +41,7 @@
       </button>
     </view>
     <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.region}}">{{item.region}}</view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.followersText}}">{{item.followersText}}</view>
     <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.tags && item.tags.length > 0}}">
       {{item.tags.join(", ")}}
     </view>
