@@ -42,3 +42,7 @@ npm run dev:api
 ## CI
 
 - GitHub Actions：push / PR 自动跑 `lint`、`typecheck`、`test`
+
+## 贡献
+
+- 见 [CONTRIBUTING.md](file:///d:/shipping_network/CONTRIBUTING.md)
