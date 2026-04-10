@@ -37,3 +37,6 @@ npm run dev:api
 - GitHub：`https://github.com/vincentxiao1964/shipping_circle.git`
 - Gitee：`https://gitee.com/vincent_xiao99/shipping_circle.git`
 
+## CI
+
+- GitHub Actions：push / PR 自动跑 `lint`、`typecheck`、`test`
