@@ -1,4 +1,4 @@
-* text=auto
+* text=auto eol=lf
 
 *.js text eol=lf
 *.ts text eol=lf
@@ -8,6 +8,7 @@
 *.md text eol=lf
 *.wxml text eol=lf
 *.wxss text eol=lf
+.github/CODEOWNERS text eol=lf
 
 *.png binary
 *.jpg binary
