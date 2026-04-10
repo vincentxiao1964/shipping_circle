@@ -2,6 +2,8 @@
 
 当前版本定位：只做人脉引荐，不找个人，只找“公司 + 某业务负责人”。
 
+[![CI](https://github.com/vincentxiao1964/shipping_circle/actions/workflows/ci.yml/badge.svg)](https://github.com/vincentxiao1964/shipping_circle/actions/workflows/ci.yml)
+
 ## 功能（MVP）
 
 - 需求广场：发布“找某公司某业务负责人”的需求、按业务筛选
