@@ -34,6 +34,12 @@
     </view>
     <view style="margin-top: 8rpx;">{{item.title}}</view>
     <view class="muted" style="margin-top: 8rpx; white-space: pre-wrap;">{{item.content}}</view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.type === 'requestPing' && item.companyName}}">
+      {{i18n["messages.company"]}}：{{item.companyName}}
+    </view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.type === 'requestPing' && item.tagsText}}">
+      {{i18n["messages.tags"]}}：{{item.tagsText}}
+    </view>
     <view class="row" style="margin-top: 12rpx;" wx:if="{{item.type === 'requestPing'}}">
       <button size="mini" data-request-id="{{item.requestId}}" catchtap="onTapOpenRequest">{{i18n["messages.openRequest"]}}</button>
       <button

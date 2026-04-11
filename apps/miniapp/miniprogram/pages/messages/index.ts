@@ -16,6 +16,8 @@ const I18N_KEYS = [
   "messages.requestPing",
   "messages.openRequest",
   "messages.introduceNow",
+  "messages.company",
+  "messages.tags",
   "common.failed",
   "common.refresh",
   "common.read",
@@ -30,6 +32,8 @@ type NotificationViewItem = NotificationItem & {
   requestId: string;
   introId: string;
   canQuickIntroduce: boolean;
+  companyName: string;
+  tagsText: string;
 };
 
 Page({
@@ -114,7 +118,9 @@ Page({
           fromUserId: n.data?.fromUserId || "",
           requestId: n.data?.requestId || "",
           introId: n.data?.introId || "",
-          canQuickIntroduce: n.type === "requestPing" && Boolean(n.data?.requestId) && Boolean(me) && String(n.data?.fromUserId || "") !== me
+          canQuickIntroduce: n.type === "requestPing" && Boolean(n.data?.requestId) && Boolean(me) && String(n.data?.fromUserId || "") !== me,
+          companyName: String(n.data?.companyName || ""),
+          tagsText: Array.isArray(n.data?.tags) ? n.data!.tags!.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 10).join(", ") : ""
         }));
         this.setData({ items: viewItems });
       })

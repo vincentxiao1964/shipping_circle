@@ -9,6 +9,8 @@ const I18N_KEYS = [
   "request.detail",
   "request.introductions",
   "request.introduce",
+  "intro.requestHintTitle",
+  "intro.requestHintContent",
   "intro.contactName",
   "intro.contactTitle",
   "intro.contactChannel",
@@ -116,6 +118,8 @@ Page({
       wx.navigateTo({ url: "/pages/login/index" });
       return;
     }
+    const company = String(this.data.item.companyName || "").trim();
+    const tagsText = Array.isArray(this.data.item.tags) ? this.data.item.tags.map((x) => String(x || "").trim()).filter(Boolean).join(", ") : "";
     let contactName = "";
     let contactTitle = "";
     let contactChannel = "";
@@ -138,6 +142,19 @@ Page({
       });
 
     Promise.resolve()
+      .then(
+        () =>
+          new Promise<void>((resolve) => {
+            if (!company && !tagsText) return resolve();
+            wx.showModal({
+              title: t("intro.requestHintTitle"),
+              content: t("intro.requestHintContent", { company: company || "-", tags: tagsText || "-" }),
+              showCancel: false,
+              success: () => resolve(),
+              fail: () => resolve()
+            });
+          })
+      )
       .then(() => ask(t("intro.contactName"), t("intro.contactName"), (v) => (contactName = v)))
       .then(() => ask(t("intro.contactTitle"), t("intro.contactTitle"), (v) => (contactTitle = v)))
       .then(() => ask(t("intro.contactChannel"), t("intro.contactChannel"), (v) => (contactChannel = v)))
