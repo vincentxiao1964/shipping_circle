@@ -34,6 +34,18 @@
     </view>
     <view style="margin-top: 8rpx;">{{item.title}}</view>
     <view class="muted" style="margin-top: 8rpx; white-space: pre-wrap;">{{item.content}}</view>
+    <view class="row" style="margin-top: 12rpx;" wx:if="{{item.type === 'requestPing'}}">
+      <button size="mini" data-request-id="{{item.requestId}}" catchtap="onTapOpenRequest">{{i18n["messages.openRequest"]}}</button>
+      <button
+        size="mini"
+        style="margin-left: 12rpx;"
+        data-request-id="{{item.requestId}}"
+        catchtap="onTapQuickIntroduce"
+        wx:if="{{item.canQuickIntroduce}}"
+      >
+        {{i18n["messages.introduceNow"]}}
+      </button>
+    </view>
   </view>
 
   <view class="card" style="margin-top: 16rpx;" wx:if="{{!loading && items.length === 0}}">

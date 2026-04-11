@@ -1,5 +1,6 @@
 import { syncPageI18n, t, type MessageKey } from "../../utils/i18n";
 import { getToken } from "../../services/api";
+import { getUserId } from "../../services/auth";
 import { listNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from "../../services/notifications";
 
 const I18N_KEYS = [
@@ -12,6 +13,9 @@ const I18N_KEYS = [
   "messages.follow",
   "messages.intro",
   "messages.introResult",
+  "messages.requestPing",
+  "messages.openRequest",
+  "messages.introduceNow",
   "common.failed",
   "common.refresh",
   "common.read",
@@ -25,6 +29,7 @@ type NotificationViewItem = NotificationItem & {
   fromUserId: string;
   requestId: string;
   introId: string;
+  canQuickIntroduce: boolean;
 };
 
 Page({
@@ -80,6 +85,9 @@ Page({
       if ((type === "intro" || type === "introResult") && requestId) {
         wx.navigateTo({ url: `/pages/request-detail/index?id=${encodeURIComponent(requestId)}` });
       }
+      if (type === "requestPing" && requestId) {
+        wx.navigateTo({ url: `/pages/request-detail/index?id=${encodeURIComponent(requestId)}` });
+      }
     };
     markNotificationRead(id)
       .then((readAt) => {
@@ -97,6 +105,7 @@ Page({
     this.setData({ loading: true });
     listNotifications()
       .then((items) => {
+        const me = getUserId() ?? "";
         const viewItems: NotificationViewItem[] = items.map((n) => ({
           ...n,
           typeLabel: this.getTypeLabel(n.type),
@@ -104,7 +113,8 @@ Page({
           postId: n.data?.postId || "",
           fromUserId: n.data?.fromUserId || "",
           requestId: n.data?.requestId || "",
-          introId: n.data?.introId || ""
+          introId: n.data?.introId || "",
+          canQuickIntroduce: n.type === "requestPing" && Boolean(n.data?.requestId) && Boolean(me) && String(n.data?.fromUserId || "") !== me
         }));
         this.setData({ items: viewItems });
       })
@@ -121,6 +131,27 @@ Page({
     if (type === "follow") return t("messages.follow");
     if (type === "intro") return t("messages.intro");
     if (type === "introResult") return t("messages.introResult");
+    if (type === "requestPing") return t("messages.requestPing");
     return t("messages.system");
+  },
+
+  onTapOpenRequest(e: WechatMiniprogram.BaseEvent) {
+    const requestId = (e.currentTarget as any)?.dataset?.requestId as string | undefined;
+    if (!requestId) return;
+    if (!getToken()) {
+      wx.navigateTo({ url: "/pages/login/index" });
+      return;
+    }
+    wx.navigateTo({ url: `/pages/request-detail/index?id=${encodeURIComponent(requestId)}` });
+  },
+
+  onTapQuickIntroduce(e: WechatMiniprogram.BaseEvent) {
+    const requestId = (e.currentTarget as any)?.dataset?.requestId as string | undefined;
+    if (!requestId) return;
+    if (!getToken()) {
+      wx.navigateTo({ url: "/pages/login/index" });
+      return;
+    }
+    wx.navigateTo({ url: `/pages/request-detail/index?id=${encodeURIComponent(requestId)}&action=introduce` });
   }
 });

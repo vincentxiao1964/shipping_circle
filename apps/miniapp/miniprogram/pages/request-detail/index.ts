@@ -78,12 +78,14 @@ Page({
     recommend: [] as { id: string; displayName: string; score: number; successCount: number; isFollowing: boolean }[],
     contactGroups: [] as ContactMatchGroup[],
     contactLoading: false,
-    loading: false
+    loading: false,
+    pendingAction: "" as "" | "introduce"
   },
   onLoad(query: Record<string, string | undefined>) {
     syncPageI18n(this, I18N_KEYS);
     const id = query.id ? String(query.id) : "";
-    this.setData({ id });
+    const action = query.action === "introduce" ? "introduce" : "";
+    this.setData({ id, pendingAction: action });
   },
   onShow() {
     syncPageI18n(this, I18N_KEYS);
@@ -342,6 +344,12 @@ Page({
           .catch(() => {
             this.setData({ recommend: [] });
           });
+      })
+      .then(() => {
+        if (this.data.pendingAction === "introduce") {
+          this.setData({ pendingAction: "" });
+          this.onTapIntroduce();
+        }
       })
       .catch(() => {
         this.setData({ item: null });

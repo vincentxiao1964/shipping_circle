@@ -1,12 +1,15 @@
 import { requestJson } from "./api";
 
-export type NotificationType = "comment" | "system" | "like" | "follow" | "intro" | "introResult";
+export type NotificationType = "comment" | "system" | "like" | "follow" | "intro" | "introResult" | "requestPing";
 
 export type NotificationData = {
   postId?: string;
   fromUserId?: string;
   requestId?: string;
   introId?: string;
+  companyId?: string;
+  companyName?: string;
+  tags?: string[];
 };
 
 export type NotificationItem = {
