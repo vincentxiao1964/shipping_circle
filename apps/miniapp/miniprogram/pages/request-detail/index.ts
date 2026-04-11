@@ -2,7 +2,20 @@ import { getToken } from "../../services/api";
 import { getUserId } from "../../services/auth";
 import { confirmContact, invalidateContact, matchContacts, updateContact, type ContactMatchGroup } from "../../services/contacts";
 import { getIsFollowing, toggleFollow } from "../../services/follows";
-import { getRecommendedIntroducers, getRequest, pingIntroducer, updateRequest, resolveIntroduction, submitIntroduction, type RequestDetail } from "../../services/requests";
+import {
+  claimRequest,
+  complainRequestClaim,
+  completeRequestClaim,
+  getRecommendedIntroducers,
+  getRequest,
+  listRequestClaims,
+  pingIntroducer,
+  updateRequest,
+  resolveIntroduction,
+  submitIntroduction,
+  type RequestClaimItem,
+  type RequestDetail
+} from "../../services/requests";
 import { parseContactChannel } from "../../utils/contact-channel";
 import { syncPageI18n, t, type MessageKey } from "../../utils/i18n";
 
@@ -60,6 +73,20 @@ const I18N_KEYS = [
   "request.viewProfile",
   "request.ping",
   "request.pingSent",
+  "request.claim",
+  "request.claimed",
+  "request.claimList",
+  "request.claimEmpty",
+  "request.claimStatusClaimed",
+  "request.claimStatusCompleted",
+  "request.claimStatusComplained",
+  "request.claimComplete",
+  "request.claimComplain",
+  "request.complainReasonTitle",
+  "request.complainReasonNoResponse",
+  "request.complainReasonDelay",
+  "request.complainReasonBadQuote",
+  "request.complainReasonOther",
   "user.follow",
   "user.unfollow",
   "request.ownerContactChannel",
@@ -80,7 +107,9 @@ Page({
     id: "",
     meUserId: "",
     item: null as RequestDetail | null,
-    recommend: [] as { id: string; displayName: string; score: number; successCount: number; isFollowing: boolean }[],
+    recommend: [] as { id: string; displayName: string; score: number; successCount: number; points?: number; complaintCount?: number; isFollowing: boolean }[],
+    claims: [] as RequestClaimItem[],
+    myClaim: null as RequestClaimItem | null,
     contactGroups: [] as ContactMatchGroup[],
     contactLoading: false,
     loading: false,
@@ -195,6 +224,24 @@ Page({
           .catch(() => {
             wx.showToast({ title: t("common.failed"), icon: "none" });
           });
+      });
+  },
+  onTapClaim() {
+    if (!this.data.item) return;
+    if (this.data.item.status === "closed") return;
+    if (this.data.item.isMine) return;
+    if (!getToken()) {
+      wx.navigateTo({ url: "/pages/login/index" });
+      return;
+    }
+    claimRequest(this.data.item.id)
+      .then((res) => {
+        if (!res) throw new Error("failed");
+        wx.showToast({ title: t("common.ok"), icon: "success" });
+        this.load();
+      })
+      .catch(() => {
+        wx.showToast({ title: t("common.failed"), icon: "none" });
       });
   },
   onTapEdit() {
@@ -349,6 +396,59 @@ Page({
       }
     });
   },
+  onTapClaimComplete(e: WechatMiniprogram.BaseEvent) {
+    const claimId = (e.currentTarget as any)?.dataset?.id as string | undefined;
+    if (!claimId) return;
+    if (!this.data.item?.isMine) return;
+    if (!getToken()) {
+      wx.navigateTo({ url: "/pages/login/index" });
+      return;
+    }
+    completeRequestClaim(this.data.item.id, claimId)
+      .then((res) => {
+        if (!res) throw new Error("failed");
+        wx.showToast({ title: t("common.ok"), icon: "success" });
+        this.load();
+      })
+      .catch(() => {
+        wx.showToast({ title: t("common.failed"), icon: "none" });
+      });
+  },
+  onTapClaimComplain(e: WechatMiniprogram.BaseEvent) {
+    const claimId = (e.currentTarget as any)?.dataset?.id as string | undefined;
+    if (!claimId) return;
+    if (!this.data.item?.isMine) return;
+    if (!getToken()) {
+      wx.navigateTo({ url: "/pages/login/index" });
+      return;
+    }
+    const reasons = [
+      { label: t("request.complainReasonNoResponse"), code: "no_response" },
+      { label: t("request.complainReasonDelay"), code: "delay" },
+      { label: t("request.complainReasonBadQuote"), code: "bad_quote" },
+      { label: t("request.complainReasonOther"), code: "other" }
+    ];
+    wx.showActionSheet({
+      itemList: reasons.map((x) => x.label),
+      success: (r) => {
+        const reason = reasons[r.tapIndex]?.code || "other";
+        complainRequestClaim(this.data.item!.id, claimId, reason)
+          .then((res) => {
+            if (!res) throw new Error("failed");
+            wx.showToast({ title: t("common.ok"), icon: "success" });
+            this.load();
+          })
+          .catch(() => {
+            wx.showToast({ title: t("common.failed"), icon: "none" });
+          });
+      }
+    });
+  },
+  getClaimStatusLabel(status: string) {
+    if (status === "completed") return t("request.claimStatusCompleted");
+    if (status === "complained") return t("request.claimStatusComplained");
+    return t("request.claimStatusClaimed");
+  },
   load() {
     if (this.data.loading) return;
     if (!this.data.id) {
@@ -377,6 +477,32 @@ Page({
           })
           .catch(() => {
             this.setData({ recommend: [] });
+          });
+      })
+      .then(() => {
+        if (!getToken()) {
+          this.setData({ claims: [], myClaim: null });
+          return;
+        }
+        if (!this.data.item) {
+          this.setData({ claims: [], myClaim: null });
+          return;
+        }
+        if (this.data.item.isMine) {
+          return listRequestClaims(this.data.id, false)
+            .then((items) => {
+              this.setData({ claims: items, myClaim: null });
+            })
+            .catch(() => {
+              this.setData({ claims: [], myClaim: null });
+            });
+        }
+        return listRequestClaims(this.data.id, true)
+          .then((items) => {
+            this.setData({ myClaim: items[0] || null, claims: [] });
+          })
+          .catch(() => {
+            this.setData({ myClaim: null, claims: [] });
           });
       })
       .then(() => {

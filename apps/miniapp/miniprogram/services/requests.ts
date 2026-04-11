@@ -41,6 +41,19 @@ export type IntroducerRecommendItem = {
   displayName: string;
   score: number;
   successCount: number;
+  points?: number;
+  complaintCount?: number;
+};
+
+export type RequestClaimItem = {
+  id: string;
+  requestId: string;
+  claimerId: string;
+  claimerDisplayName?: string;
+  status: "claimed" | "completed" | "complained";
+  createdAt: number;
+  completedAt?: number;
+  complainedAt?: number;
 };
 
 export type PageResult<T> = {
@@ -205,6 +218,69 @@ export async function getRecommendedIntroducers(requestId: string, limit = 5): P
     return Array.isArray(res?.items) ? res.items : [];
   } catch {
     return [];
+  }
+}
+
+export async function claimRequest(requestId: string): Promise<{ id: string; status: string } | null> {
+  const id = requestId.trim();
+  if (!id) return null;
+  try {
+    const res = await requestJson<{ ok: boolean; duplicated?: boolean; item?: { id: string; status: string } }>(
+      "POST",
+      `/requests/${encodeURIComponent(id)}/claim`,
+      {}
+    );
+    if (!res?.ok || !res?.item?.id) return null;
+    return { id: String(res.item.id), status: String(res.item.status || "") };
+  } catch {
+    return null;
+  }
+}
+
+export async function listRequestClaims(requestId: string, mine?: boolean): Promise<RequestClaimItem[]> {
+  const id = requestId.trim();
+  if (!id) return [];
+  try {
+    const qs = buildQuery({ mine: mine ? "1" : "" });
+    const res = await requestJson<{ items: RequestClaimItem[] }>("GET", `/requests/${encodeURIComponent(id)}/claims${qs}`);
+    return Array.isArray(res?.items) ? res.items : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function completeRequestClaim(requestId: string, claimId: string): Promise<{ pointsAwarded: number } | null> {
+  const rid = requestId.trim();
+  const cid = claimId.trim();
+  if (!rid || !cid) return null;
+  try {
+    const res = await requestJson<{ ok: boolean; pointsAwarded?: number }>(
+      "POST",
+      `/requests/${encodeURIComponent(rid)}/claims/${encodeURIComponent(cid)}/complete`,
+      {}
+    );
+    if (!res?.ok) return null;
+    return { pointsAwarded: Number(res.pointsAwarded || 0) };
+  } catch {
+    return null;
+  }
+}
+
+export async function complainRequestClaim(requestId: string, claimId: string, reason: string): Promise<{ penaltyPoints: number } | null> {
+  const rid = requestId.trim();
+  const cid = claimId.trim();
+  const rsn = String(reason || "").trim();
+  if (!rid || !cid) return null;
+  try {
+    const res = await requestJson<{ ok: boolean; penaltyPoints?: number }>(
+      "POST",
+      `/requests/${encodeURIComponent(rid)}/claims/${encodeURIComponent(cid)}/complain`,
+      { reason: rsn }
+    );
+    if (!res?.ok) return null;
+    return { penaltyPoints: Number(res.penaltyPoints || 0) };
+  } catch {
+    return null;
   }
 }
 

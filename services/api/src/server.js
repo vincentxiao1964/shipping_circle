@@ -1391,9 +1391,10 @@ const server = http.createServer(async (req, res) => {
     const id = decodeURIComponent(requestClaimsListMatch[1]);
     const r = requests.find((x) => x.id === id);
     if (!r) return json(res, 404, { error: "Not Found" });
-    if (r.ownerId !== userId) return json(res, 403, { error: "Forbidden" });
+    const mineOnly = String(url.searchParams.get("mine") || "") === "1";
+    if (!mineOnly && r.ownerId !== userId) return json(res, 403, { error: "Forbidden" });
     const items = requestClaims
-      .filter((c) => c && c.requestId === r.id)
+      .filter((c) => c && c.requestId === r.id && (!mineOnly || c.claimerId === userId))
       .slice()
       .sort((a, b) => b.createdAt - a.createdAt)
       .map((c) => ({

@@ -37,6 +37,38 @@
       <button size="mini" type="primary" wx:if="{{!item.isMine && item.status !== 'closed'}}" bindtap="onTapIntroduce">
         {{i18n["request.introduce"]}}
       </button>
+      <button
+        size="mini"
+        style="margin-left: 12rpx;"
+        wx:if="{{!item.isMine && item.status !== 'closed'}}"
+        disabled="{{myClaim && myClaim.status === 'claimed'}}"
+        bindtap="onTapClaim"
+      >
+        {{myClaim && myClaim.status === 'claimed' ? i18n["request.claimed"] : i18n["request.claim"]}}
+      </button>
+    </view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{!item.isMine && myClaim}}">
+      {{i18n["request.claim"]}}：{{getClaimStatusLabel(myClaim.status)}}
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;" wx:if="{{item.isMine}}">
+    <view class="row">
+      <view style="font-weight: 600;">{{i18n["request.claimList"]}}</view>
+      <button size="mini" bindtap="onTapRefresh">{{i18n["common.refresh"]}}</button>
+    </view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{!claims || claims.length === 0}}">
+      {{i18n["request.claimEmpty"]}}
+    </view>
+    <view class="card" style="margin-top: 12rpx;" wx:for="{{claims}}" wx:for-item="c" wx:key="id">
+      <view class="row">
+        <view style="font-weight: 600;">{{c.claimerDisplayName || c.claimerId}}</view>
+        <view class="muted" style="font-size: 24rpx;">{{getClaimStatusLabel(c.status)}}</view>
+      </view>
+      <view class="row" style="margin-top: 12rpx;" wx:if="{{c.status === 'claimed'}}">
+        <button size="mini" type="primary" data-id="{{c.id}}" bindtap="onTapClaimComplete">{{i18n["request.claimComplete"]}}</button>
+        <button size="mini" style="margin-left: 12rpx;" data-id="{{c.id}}" bindtap="onTapClaimComplain">{{i18n["request.claimComplain"]}}</button>
+      </view>
     </view>
   </view>
 
@@ -94,7 +126,9 @@
           <button size="mini" style="margin-left: 12rpx;" data-id="{{u.id}}" catchtap="onTapPingUser">{{i18n["request.ping"]}}</button>
         </view>
       </view>
-      <view class="muted" style="margin-top: 8rpx;">score {{u.score}} · {{u.successCount}} success</view>
+      <view class="muted" style="margin-top: 8rpx;">
+        score {{u.score}} · {{u.successCount}} success · points {{u.points || 0}} · complaints {{u.complaintCount || 0}}
+      </view>
     </view>
   </view>
 
