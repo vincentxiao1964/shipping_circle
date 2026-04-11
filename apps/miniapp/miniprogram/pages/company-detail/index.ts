@@ -1,4 +1,4 @@
-import { getCompany } from "../../services/companies";
+import { addCompanyAlias, getCompany } from "../../services/companies";
 import { matchContacts, type ContactMatchGroup } from "../../services/contacts";
 import { listRequestsPage, type RequestListItem } from "../../services/requests";
 import { getToken } from "../../services/api";
@@ -14,6 +14,10 @@ const I18N_KEYS = [
   "company.follow",
   "company.unfollow",
   "company.followersCount",
+  "company.addAlias",
+  "company.addAliasPlaceholder",
+  "company.aliasAdded",
+  "company.aliasConflict",
   "contact.sectionTitle",
   "contact.empty",
   "contact.copy",
@@ -100,6 +104,39 @@ Page({
       .finally(() => {
         this.setData({ loading: false });
       });
+  },
+  onTapAddAlias() {
+    if (!this.data.item?.id) return;
+    if (!getToken()) {
+      wx.navigateTo({ url: "/pages/login/index" });
+      return;
+    }
+    wx.showModal({
+      title: t("company.addAlias"),
+      editable: true,
+      placeholderText: t("company.addAliasPlaceholder"),
+      success: (r) => {
+        if (!r.confirm) return;
+        const alias = String((r as any).content || "").trim();
+        if (!alias) return;
+        addCompanyAlias(this.data.item.id, alias)
+          .then((res) => {
+            if (!res) {
+              wx.showToast({ title: t("common.failed"), icon: "none" });
+              return;
+            }
+            if (res.conflict) {
+              wx.showToast({ title: t("company.aliasConflict"), icon: "none" });
+              return;
+            }
+            wx.showToast({ title: t("company.aliasAdded"), icon: "success" });
+            this.load();
+          })
+          .catch(() => {
+            wx.showToast({ title: t("common.failed"), icon: "none" });
+          });
+      }
+    });
   },
   load() {
     if (this.data.loading) return;

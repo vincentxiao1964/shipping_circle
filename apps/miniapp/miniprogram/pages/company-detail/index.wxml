@@ -4,6 +4,7 @@
       <view style="font-weight: 600;">{{item.name}}</view>
       <view>
         <button size="mini" bindtap="onTapRefresh">{{i18n["common.refresh"]}}</button>
+        <button size="mini" style="margin-left: 12rpx;" bindtap="onTapAddAlias">{{i18n["company.addAlias"]}}</button>
         <button
           size="mini"
           type="{{item.followedByMe ? 'default' : 'primary'}}"

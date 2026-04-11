@@ -73,6 +73,22 @@ export async function createCompany(input: { name: string; region: string; tags:
   }
 }
 
+export async function addCompanyAlias(companyId: string, alias: string): Promise<{ ok: boolean; conflict?: boolean } | null> {
+  const id = String(companyId || "").trim();
+  const a = String(alias || "").trim();
+  if (!id || !a) return null;
+  try {
+    await requestJson("POST", `/companies/${encodeURIComponent(id)}/aliases`, { alias: a });
+    return { ok: true };
+  } catch (e) {
+    const statusCode = (e as any)?.statusCode as number | undefined;
+    if (statusCode === 409) {
+      return { ok: false, conflict: true };
+    }
+    return null;
+  }
+}
+
 export async function toggleCompanyFollow(companyId: string): Promise<{ following: boolean; followerCount: number } | null> {
   const id = companyId.trim();
   if (!id) return null;

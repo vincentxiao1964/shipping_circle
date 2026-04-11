@@ -53,6 +53,7 @@ const server = http.createServer(async (req, res) => {
         "POST /companies",
         "GET /companies/:id",
         "GET /companies/resolve?name=...",
+        "POST /companies/:id/aliases",
         "POST /companies/:id/follow",
         "GET /companies/me/following",
         "GET /contacts/match",
@@ -359,6 +360,38 @@ const server = http.createServer(async (req, res) => {
       companies.find((x) => Array.isArray(x?.aliases) && x.aliases.some((a) => normalizeCompany(a) === key));
     if (!c) return json(res, 404, { error: "Not Found" });
     return json(res, 200, { item: { id: c.id, name: c.name } });
+  }
+
+  const companyAliasAddMatch = url.pathname.match(/^\/companies\/([^/]+)\/aliases$/);
+  if (req.method === "POST" && companyAliasAddMatch) {
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!userId) return json(res, 401, { error: "Unauthorized" });
+    const id = decodeURIComponent(companyAliasAddMatch[1]);
+    const c = companies.find((x) => x.id === id);
+    if (!c) return json(res, 404, { error: "Not Found" });
+    const body = await readJson(req).catch(() => null);
+    const alias = typeof body?.alias === "string" ? body.alias.trim() : "";
+    if (!alias) return json(res, 400, { error: "alias required" });
+    if (alias.length > 80) return json(res, 400, { error: "alias too long" });
+
+    const aliasKey = normalizeCompany(alias);
+    if (!aliasKey) return json(res, 400, { error: "alias invalid" });
+
+    const conflict = companies.find((x) => {
+      if (!x || x.id === c.id) return false;
+      if (normalizeCompany(x.name || "") === aliasKey) return true;
+      if (Array.isArray(x.aliases) && x.aliases.some((a) => normalizeCompany(a) === aliasKey)) return true;
+      return false;
+    });
+    if (conflict) {
+      return json(res, 409, { error: "alias conflicts", conflict: { id: conflict.id, name: conflict.name } });
+    }
+
+    const set = new Set(Array.isArray(c.aliases) ? c.aliases.map((x) => String(x || "").trim()).filter(Boolean) : []);
+    set.add(alias);
+    c.aliases = Array.from(set.values()).slice(0, 50);
+    markDirty();
+    return json(res, 200, { item: { id: c.id, aliases: c.aliases } });
   }
 
   const adminAliasesMatch = url.pathname.match(/^\/admin\/companies\/([^/]+)\/aliases$/);
