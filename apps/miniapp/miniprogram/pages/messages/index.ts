@@ -2,6 +2,7 @@ import { syncPageI18n, t, type MessageKey } from "../../utils/i18n";
 import { getToken } from "../../services/api";
 import { getUserId } from "../../services/auth";
 import { listNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from "../../services/notifications";
+import { claimRequest } from "../../services/requests";
 
 const I18N_KEYS = [
   "messages.title",
@@ -16,6 +17,7 @@ const I18N_KEYS = [
   "messages.requestPing",
   "messages.openRequest",
   "messages.introduceNow",
+  "messages.claimNow",
   "messages.company",
   "messages.tags",
   "messages.openAdmin",
@@ -166,6 +168,24 @@ Page({
       return;
     }
     wx.navigateTo({ url: `/pages/request-detail/index?id=${encodeURIComponent(requestId)}&action=introduce` });
+  },
+
+  onTapClaimNow(e: WechatMiniprogram.BaseEvent) {
+    const requestId = (e.currentTarget as any)?.dataset?.requestId as string | undefined;
+    if (!requestId) return;
+    if (!getToken()) {
+      wx.navigateTo({ url: "/pages/login/index" });
+      return;
+    }
+    claimRequest(requestId)
+      .then((res) => {
+        if (!res) throw new Error("failed");
+        wx.showToast({ title: t("common.ok"), icon: "success" });
+        wx.navigateTo({ url: `/pages/request-detail/index?id=${encodeURIComponent(requestId)}` });
+      })
+      .catch(() => {
+        wx.showToast({ title: t("common.failed"), icon: "none" });
+      });
   },
 
   onTapOpenAdmin(e: WechatMiniprogram.BaseEvent) {
