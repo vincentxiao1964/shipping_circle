@@ -519,101 +519,7 @@ const server = http.createServer(async (req, res) => {
     if (!isAdmin(req)) return json(res, 403, { error: "Forbidden" });
     const body = await readJson(req).catch(() => null);
     const dryRun = Boolean(body?.dryRun);
-
-    let usersUpdated = 0;
-    let requestsUpdated = 0;
-    let introductionsUpdated = 0;
-    let contactsUpdated = 0;
-
-    const contactPlans = [];
-    for (const u of users.values()) {
-      const raw = String(u?.contactChannel || "").trim();
-      if (!raw) continue;
-      const normalized = canonicalizeContactChannel(raw)?.display || raw;
-      if (normalized !== raw) {
-        usersUpdated += 1;
-        if (!dryRun) u.contactChannel = normalized.slice(0, 200);
-      }
-    }
-
-    for (const r of requests) {
-      const raw = String(r?.ownerContactChannel || "").trim();
-      if (!raw) continue;
-      const normalized = canonicalizeContactChannel(raw)?.display || raw;
-      if (normalized !== raw) {
-        requestsUpdated += 1;
-        if (!dryRun) r.ownerContactChannel = normalized.slice(0, 200);
-      }
-    }
-
-    for (const i of introductions) {
-      const raw = String(i?.contactChannel || "").trim();
-      if (!raw) continue;
-      const normalized = canonicalizeContactChannel(raw)?.display || raw;
-      if (normalized !== raw) {
-        introductionsUpdated += 1;
-        if (!dryRun) i.contactChannel = normalized.slice(0, 200);
-      }
-    }
-
-    const computeKey = (ct, contactChannel) => {
-      const channelKey = normalizeChannel(contactChannel);
-      const businessKey = normalizeBusiness(ct.business || "");
-      if (ct.companyId) return `${ct.companyId}|${businessKey}|${channelKey}`;
-      return `${normalizeCompany(ct.companyName || "")}|${businessKey}|${channelKey}`;
-    };
-
-    for (const c of contacts) {
-      const raw = String(c?.contactChannel || "").trim();
-      const normalized = raw ? canonicalizeContactChannel(raw)?.display || raw : "";
-      const nextKey = normalized ? computeKey(c, normalized) : String(c?.key || "");
-      contactPlans.push({ id: c.id, raw, normalized, nextKey, currentKey: String(c?.key || "") });
-    }
-    const keyToIds = new Map();
-    for (const p of contactPlans) {
-      const k = String(p.nextKey || "");
-      if (!k) continue;
-      const arr = keyToIds.get(k) || [];
-      arr.push(p.id);
-      keyToIds.set(k, arr);
-    }
-    const conflicts = [];
-    for (const [k, ids] of keyToIds.entries()) {
-      if (ids.length > 1) conflicts.push({ key: k, ids });
-    }
-    const conflictKeySet = new Set(conflicts.map((x) => x.key));
-
-    const now = Date.now();
-    for (const p of contactPlans) {
-      if (!p.normalized) continue;
-      if (conflictKeySet.has(p.nextKey)) continue;
-      if (p.normalized !== p.raw || p.nextKey !== p.currentKey) {
-        contactsUpdated += 1;
-        if (!dryRun) {
-          const c = contacts.find((x) => x && x.id === p.id);
-          if (!c) continue;
-          c.contactChannel = p.normalized.slice(0, 200);
-          c.key = p.nextKey;
-          c.updatedAt = now;
-        }
-      }
-    }
-
-    if (!dryRun && (usersUpdated || requestsUpdated || introductionsUpdated || contactsUpdated)) {
-      for (const u of users.values()) upsertSelfClaimedContactsFromUser(u);
-      markDirty();
-    }
-
-    return json(res, 200, {
-      ok: true,
-      dryRun,
-      usersUpdated,
-      requestsUpdated,
-      introductionsUpdated,
-      contactsUpdated,
-      contactConflictCount: conflicts.length,
-      contactConflicts: conflicts.slice(0, 50)
-    });
+    return json(res, 200, normalizeStoredChannels({ dryRun }));
   }
 
   const companyFollowMatch = url.pathname.match(/^\/companies\/([^/]+)\/follow$/);
@@ -1838,6 +1744,25 @@ server.listen(PORT, () => {
   process.stdout.write(`api listening on http://localhost:${port}\n`);
 });
 
+const AUTO_NORMALIZE_ON_START = String(process.env.AUTO_NORMALIZE_ON_START || "") === "1";
+const AUTO_NORMALIZE_INTERVAL_MS = Number(process.env.AUTO_NORMALIZE_INTERVAL_MS || 0);
+const AUTO_NORMALIZE_DRY_RUN = String(process.env.AUTO_NORMALIZE_DRY_RUN || "1") !== "0";
+const runAutoNormalize = () => {
+  try {
+    const out = normalizeStoredChannels({ dryRun: AUTO_NORMALIZE_DRY_RUN });
+    process.stdout.write(
+      `auto normalizeChannels: dryRun=${out.dryRun} users=${out.usersUpdated} requests=${out.requestsUpdated} intros=${out.introductionsUpdated} contacts=${out.contactsUpdated} conflicts=${out.contactConflictCount}\n`
+    );
+  } catch (e) {
+    process.stderr.write(`auto normalizeChannels failed: ${String(e && e.message ? e.message : e)}\n`);
+  }
+};
+if (AUTO_NORMALIZE_ON_START) runAutoNormalize();
+if (Number.isFinite(AUTO_NORMALIZE_INTERVAL_MS) && AUTO_NORMALIZE_INTERVAL_MS > 0) {
+  const timer = setInterval(runAutoNormalize, Math.min(Math.max(10_000, AUTO_NORMALIZE_INTERVAL_MS), 7 * 24 * 60 * 60 * 1000));
+  if (timer && typeof timer.unref === "function") timer.unref();
+}
+
 let currentPort = PORT;
 let portTries = 0;
 server.on("error", (err) => {
@@ -1859,7 +1784,7 @@ server.on("error", (err) => {
 function setCors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,x-admin-key");
 }
 
 function json(res, status, data) {
@@ -2056,6 +1981,105 @@ function canonicalizeContactChannel(input) {
   }
 
   return { kind: "other", display: raw };
+}
+
+function normalizeStoredChannels(opts) {
+  const dryRun = Boolean(opts?.dryRun);
+
+  let usersUpdated = 0;
+  let requestsUpdated = 0;
+  let introductionsUpdated = 0;
+  let contactsUpdated = 0;
+
+  const contactPlans = [];
+  for (const u of users.values()) {
+    const raw = String(u?.contactChannel || "").trim();
+    if (!raw) continue;
+    const normalized = canonicalizeContactChannel(raw)?.display || raw;
+    if (normalized !== raw) {
+      usersUpdated += 1;
+      if (!dryRun) u.contactChannel = normalized.slice(0, 200);
+    }
+  }
+
+  for (const r of requests) {
+    const raw = String(r?.ownerContactChannel || "").trim();
+    if (!raw) continue;
+    const normalized = canonicalizeContactChannel(raw)?.display || raw;
+    if (normalized !== raw) {
+      requestsUpdated += 1;
+      if (!dryRun) r.ownerContactChannel = normalized.slice(0, 200);
+    }
+  }
+
+  for (const i of introductions) {
+    const raw = String(i?.contactChannel || "").trim();
+    if (!raw) continue;
+    const normalized = canonicalizeContactChannel(raw)?.display || raw;
+    if (normalized !== raw) {
+      introductionsUpdated += 1;
+      if (!dryRun) i.contactChannel = normalized.slice(0, 200);
+    }
+  }
+
+  const computeKey = (ct, contactChannel) => {
+    const channelKey = normalizeChannel(contactChannel);
+    const businessKey = normalizeBusiness(ct.business || "");
+    if (ct.companyId) return `${ct.companyId}|${businessKey}|${channelKey}`;
+    return `${normalizeCompany(ct.companyName || "")}|${businessKey}|${channelKey}`;
+  };
+
+  for (const c of contacts) {
+    const raw = String(c?.contactChannel || "").trim();
+    const normalized = raw ? canonicalizeContactChannel(raw)?.display || raw : "";
+    const nextKey = normalized ? computeKey(c, normalized) : String(c?.key || "");
+    contactPlans.push({ id: c.id, raw, normalized, nextKey, currentKey: String(c?.key || "") });
+  }
+  const keyToIds = new Map();
+  for (const p of contactPlans) {
+    const k = String(p.nextKey || "");
+    if (!k) continue;
+    const arr = keyToIds.get(k) || [];
+    arr.push(p.id);
+    keyToIds.set(k, arr);
+  }
+  const conflicts = [];
+  for (const [k, ids] of keyToIds.entries()) {
+    if (ids.length > 1) conflicts.push({ key: k, ids });
+  }
+  const conflictKeySet = new Set(conflicts.map((x) => x.key));
+
+  const now = Date.now();
+  for (const p of contactPlans) {
+    if (!p.normalized) continue;
+    if (conflictKeySet.has(p.nextKey)) continue;
+    if (p.normalized !== p.raw || p.nextKey !== p.currentKey) {
+      contactsUpdated += 1;
+      if (!dryRun) {
+        const c = contacts.find((x) => x && x.id === p.id);
+        if (!c) continue;
+        c.contactChannel = p.normalized.slice(0, 200);
+        c.key = p.nextKey;
+        c.updatedAt = now;
+      }
+    }
+  }
+
+  if (!dryRun && (usersUpdated || requestsUpdated || introductionsUpdated || contactsUpdated)) {
+    for (const u of users.values()) upsertSelfClaimedContactsFromUser(u);
+    markDirty();
+  }
+
+  return {
+    ok: true,
+    dryRun,
+    usersUpdated,
+    requestsUpdated,
+    introductionsUpdated,
+    contactsUpdated,
+    contactConflictCount: conflicts.length,
+    contactConflicts: conflicts.slice(0, 50)
+  };
 }
 
 function normalizeChannel(input) {
