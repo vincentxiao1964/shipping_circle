@@ -4,6 +4,12 @@ import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
+function hash(input) {
+  let out = 0;
+  for (let i = 0; i < input.length; i += 1) out = (out * 31 + input.charCodeAt(i)) >>> 0;
+  return out.toString(16);
+}
+
 function startServer(env) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ["src/server.js"], {
@@ -42,7 +48,8 @@ function stopServer(child) {
 }
 
 test("admin: normalizeChannels canonicalizes contactChannel and keys", async () => {
-  const { child, port } = await startServer({ PORT: "0", ADMIN_KEY: "admin_test_key" });
+  const ownerUserId = `u_${hash(`mock_${hash("owner_norm")}`)}`;
+  const { child, port } = await startServer({ PORT: "0", ADMIN_KEY: "admin_test_key", ADMIN_NOTIFY_USER_ID: ownerUserId });
   try {
     const base = `http://localhost:${port}`;
 
@@ -123,6 +130,12 @@ test("admin: normalizeChannels canonicalizes contactChannel and keys", async () 
     assert.equal(normalized.ok, true);
     assert.ok(normalized.contactsUpdated >= 1);
 
+    const notifResp = await fetch(`${base}/notifications`, { headers: { Authorization: `Bearer ${owner.token}` } });
+    assert.equal(notifResp.status, 200);
+    const notifs = await notifResp.json();
+    assert.ok(Array.isArray(notifs.items));
+    assert.ok(notifs.items.some((n) => n.type === "system" && n.data?.kind === "normalizeChannels"));
+
     const listVerified3 = await fetch(
       `${base}/contacts/list?companyId=${encodeURIComponent(companyId)}&statuses=${encodeURIComponent("verified")}`,
       { headers: { Authorization: `Bearer ${owner.token}` } }
@@ -132,4 +145,3 @@ test("admin: normalizeChannels canonicalizes contactChannel and keys", async () 
     await stopServer(child);
   }
 });
-

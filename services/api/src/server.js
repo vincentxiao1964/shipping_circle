@@ -24,6 +24,7 @@ const REFRESH_GRACE_MS = Number(process.env.REFRESH_GRACE_MS || 24 * 60 * 60 * 1
 const CONTACT_STALE_MS = Number(process.env.CONTACT_STALE_MS || 90 * 24 * 60 * 60 * 1000);
 const CONTACT_ENDORSE_VERIFY_N = Number(process.env.CONTACT_ENDORSE_VERIFY_N || 2);
 const ADMIN_KEY = String(process.env.ADMIN_KEY || "").trim();
+const ADMIN_NOTIFY_USER_ID = String(process.env.ADMIN_NOTIFY_USER_ID || "").trim();
 
 const server = http.createServer(async (req, res) => {
   setCors(res);
@@ -519,7 +520,9 @@ const server = http.createServer(async (req, res) => {
     if (!isAdmin(req)) return json(res, 403, { error: "Forbidden" });
     const body = await readJson(req).catch(() => null);
     const dryRun = Boolean(body?.dryRun);
-    return json(res, 200, normalizeStoredChannels({ dryRun }));
+    const out = normalizeStoredChannels({ dryRun });
+    notifyAdminNormalizeReport(out, "manual");
+    return json(res, 200, out);
   }
 
   const companyFollowMatch = url.pathname.match(/^\/companies\/([^/]+)\/follow$/);
@@ -1750,6 +1753,7 @@ const AUTO_NORMALIZE_DRY_RUN = String(process.env.AUTO_NORMALIZE_DRY_RUN || "1")
 const runAutoNormalize = () => {
   try {
     const out = normalizeStoredChannels({ dryRun: AUTO_NORMALIZE_DRY_RUN });
+    notifyAdminNormalizeReport(out, "auto");
     process.stdout.write(
       `auto normalizeChannels: dryRun=${out.dryRun} users=${out.usersUpdated} requests=${out.requestsUpdated} intros=${out.introductionsUpdated} contacts=${out.contactsUpdated} conflicts=${out.contactConflictCount}\n`
     );
@@ -2080,6 +2084,56 @@ function normalizeStoredChannels(opts) {
     contactConflictCount: conflicts.length,
     contactConflicts: conflicts.slice(0, 50)
   };
+}
+
+function notifyAdminNormalizeReport(report, source) {
+  if (!ADMIN_NOTIFY_USER_ID) return false;
+  const toUserId = ADMIN_NOTIFY_USER_ID;
+  ensureUser(toUserId);
+  const out = report || {};
+  const anyUpdated = Number(out.usersUpdated || 0) + Number(out.requestsUpdated || 0) + Number(out.introductionsUpdated || 0) + Number(out.contactsUpdated || 0);
+  const conflictCount = Number(out.contactConflictCount || 0);
+  const shouldNotify = conflictCount > 0 || (!out.dryRun && anyUpdated > 0);
+  if (!shouldNotify) return false;
+
+  const fingerprint = `${out.dryRun ? 1 : 0}:${out.usersUpdated || 0}:${out.requestsUpdated || 0}:${out.introductionsUpdated || 0}:${out.contactsUpdated || 0}:${conflictCount}`;
+  const now = Date.now();
+  const RECENT_MS = 30 * 60 * 1000;
+  const exists = notifications.some(
+    (n) =>
+      n &&
+      n.toUserId === toUserId &&
+      n.type === "system" &&
+      String(n.data?.kind || "") === "normalizeChannels" &&
+      String(n.data?.fingerprint || "") === fingerprint &&
+      typeof n.createdAt === "number" &&
+      now - n.createdAt < RECENT_MS
+  );
+  if (exists) return false;
+
+  const title = conflictCount > 0 ? "Data conflicts found / 数据冲突提醒" : "Data normalized / 数据清洗完成";
+  const content = [
+    `source: ${String(source || "manual")}`,
+    `dryRun: ${out.dryRun ? "true" : "false"}`,
+    `users: ${out.usersUpdated || 0}`,
+    `requests: ${out.requestsUpdated || 0}`,
+    `introductions: ${out.introductionsUpdated || 0}`,
+    `contacts: ${out.contactsUpdated || 0}`,
+    `conflicts: ${conflictCount}`
+  ].join("\n");
+
+  notifications.push({
+    id: `n_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    toUserId,
+    type: "system",
+    title,
+    content: content.slice(0, 500),
+    createdAt: now,
+    readAt: null,
+    data: { kind: "normalizeChannels", fingerprint, report: { ...out, contactConflicts: undefined } }
+  });
+  markDirty();
+  return true;
 }
 
 function normalizeChannel(input) {
