@@ -6,6 +6,8 @@ const PORT = Number(process.env.PORT || 8787);
 
 const store = initStore();
 const tokenToUser = store.tokenToUser;
+const tokenMeta = store.tokenMeta;
+const userTokens = store.userTokens;
 const users = store.users;
 const userStats = store.userStats;
 const posts = store.posts;
@@ -16,6 +18,7 @@ const companyFollows = store.companyFollows;
 const notifications = store.notifications;
 const follows = store.follows;
 const MAX_PORT_TRIES = 20;
+const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 const server = http.createServer(async (req, res) => {
   setCors(res);
@@ -40,6 +43,7 @@ const server = http.createServer(async (req, res) => {
       endpoints: [
         "GET /health",
         "POST /auth/wechat",
+        "POST /auth/logout",
         "GET /companies",
         "POST /companies",
         "GET /companies/:id",
@@ -89,8 +93,13 @@ const server = http.createServer(async (req, res) => {
 
     const openid = await getWeChatOpenId(code);
     const userId = `u_${hash(openid)}`;
+    revokeAllUserTokens(userId, tokenToUser, tokenMeta, userTokens);
     const token = randomUUID();
     tokenToUser.set(token, userId);
+    tokenMeta.set(token, { userId, createdAt: Date.now(), expiresAt: Date.now() + TOKEN_TTL_MS });
+    const userSet = userTokens.get(userId) || new Set();
+    userSet.add(token);
+    userTokens.set(userId, userSet);
     ensureUser(userId, { openid });
     if (!follows.has(userId)) follows.set(userId, new Set());
     notifications.push({
@@ -106,19 +115,28 @@ const server = http.createServer(async (req, res) => {
 
     return json(res, 200, {
       token,
+      expiresAt: tokenMeta.get(token).expiresAt,
       user: { id: userId, displayName: users.get(userId).displayName }
     });
   }
 
+  if (req.method === "POST" && url.pathname === "/auth/logout") {
+    const token = getAuthToken(req);
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!userId || !token) return json(res, 401, { error: "Unauthorized" });
+    revokeToken(token, tokenToUser, tokenMeta, userTokens);
+    return json(res, 200, { ok: true });
+  }
+
   if (req.method === "GET" && url.pathname === "/users/me") {
-    const userId = getAuthUserId(req, tokenToUser);
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     const u = ensureUser(userId);
     return json(res, 200, { item: { id: u.id, displayName: u.displayName } });
   }
 
   if (req.method === "PUT" && url.pathname === "/users/me") {
-    const userId = getAuthUserId(req, tokenToUser);
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     const body = await readJson(req).catch(() => null);
     const displayName = typeof body?.displayName === "string" ? body.displayName.trim() : "";
@@ -195,7 +213,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "GET" && url.pathname === "/companies") {
-    const viewerId = getAuthUserId(req, tokenToUser);
+    const viewerId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     const q = String(url.searchParams.get("q") || "").trim().toLowerCase();
     const cursor = String(url.searchParams.get("cursor") || "");
     const limitRaw = Number(url.searchParams.get("limit") || 20);
@@ -228,7 +246,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "GET" && url.pathname === "/companies/me/following") {
-    const userId = getAuthUserId(req, tokenToUser);
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     const set = companyFollows.get(userId) || new Set();
     const ids = Array.from(set.values());
@@ -255,7 +273,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "POST" && url.pathname === "/companies") {
-    const userId = getAuthUserId(req, tokenToUser);
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     ensureUser(userId);
 
@@ -292,7 +310,7 @@ const server = http.createServer(async (req, res) => {
 
   const companyMatch = url.pathname.match(/^\/companies\/([^/]+)$/);
   if (req.method === "GET" && companyMatch) {
-    const viewerId = getAuthUserId(req, tokenToUser);
+    const viewerId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     const id = decodeURIComponent(companyMatch[1]);
     const c = companies.find((x) => x.id === id);
     if (!c) return json(res, 404, { error: "Not Found" });
@@ -314,7 +332,7 @@ const server = http.createServer(async (req, res) => {
 
   const companyFollowMatch = url.pathname.match(/^\/companies\/([^/]+)\/follow$/);
   if (req.method === "POST" && companyFollowMatch) {
-    const userId = getAuthUserId(req, tokenToUser);
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     const companyId = decodeURIComponent(companyFollowMatch[1]);
     const c = companies.find((x) => x.id === companyId);
@@ -329,7 +347,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "GET" && url.pathname === "/requests") {
-    const viewerId = getAuthUserId(req, tokenToUser);
+    const viewerId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     const mineOnly = String(url.searchParams.get("mine") || "") === "1";
     const includeClosed = String(url.searchParams.get("includeClosed") || "") === "1";
     const tag = String(url.searchParams.get("tag") || "").trim();
@@ -387,7 +405,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "POST" && url.pathname === "/requests") {
-    const userId = getAuthUserId(req, tokenToUser);
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     ensureUser(userId);
     ensureUserStats(userId);
@@ -425,7 +443,7 @@ const server = http.createServer(async (req, res) => {
 
   const requestMatch = url.pathname.match(/^\/requests\/([^/]+)$/);
   if (req.method === "GET" && requestMatch) {
-    const viewerId = getAuthUserId(req, tokenToUser);
+    const viewerId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     const id = decodeURIComponent(requestMatch[1]);
     const r = requests.find((x) => x.id === id);
     if (!r) return json(res, 404, { error: "Not Found" });
@@ -467,7 +485,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "PUT" && requestMatch) {
-    const userId = getAuthUserId(req, tokenToUser);
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     const id = decodeURIComponent(requestMatch[1]);
     const r = requests.find((x) => x.id === id);
@@ -510,7 +528,7 @@ const server = http.createServer(async (req, res) => {
 
   const requestIntroMatch = url.pathname.match(/^\/requests\/([^/]+)\/introductions$/);
   if (req.method === "POST" && requestIntroMatch) {
-    const userId = getAuthUserId(req, tokenToUser);
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     const requestId = decodeURIComponent(requestIntroMatch[1]);
     const r = requests.find((x) => x.id === requestId);
@@ -587,7 +605,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "GET" && url.pathname === "/introductions") {
-    const userId = getAuthUserId(req, tokenToUser);
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     const mineOnly = String(url.searchParams.get("mine") || "") === "1";
     if (!mineOnly) return json(res, 400, { error: "mine=1 required" });
@@ -624,7 +642,7 @@ const server = http.createServer(async (req, res) => {
 
   const introResolveMatch = url.pathname.match(/^\/introductions\/([^/]+)\/resolve$/);
   if (req.method === "POST" && introResolveMatch) {
-    const userId = getAuthUserId(req, tokenToUser);
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     const id = decodeURIComponent(introResolveMatch[1]);
     const intro = introductions.find((x) => x.id === id);
@@ -718,7 +736,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "GET" && url.pathname === "/posts") {
-    const viewerId = getAuthUserId(req, tokenToUser);
+    const viewerId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
 
     const feed = String(url.searchParams.get("feed") || "all");
     const authorIdFilter = String(url.searchParams.get("authorId") || "");
@@ -762,7 +780,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "GET" && url.pathname === "/search") {
-    const viewerId = getAuthUserId(req, tokenToUser);
+    const viewerId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     const type = String(url.searchParams.get("type") || "posts");
     const q = String(url.searchParams.get("q") || "").trim().toLowerCase();
     const cursor = String(url.searchParams.get("cursor") || "");
@@ -812,7 +830,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "POST" && url.pathname === "/posts") {
-    const userId = getAuthUserId(req, tokenToUser);
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
 
     const body = await readJson(req).catch(() => null);
@@ -836,7 +854,7 @@ const server = http.createServer(async (req, res) => {
 
   const postMatch = url.pathname.match(/^\/posts\/([^/]+)$/);
   if (req.method === "GET" && postMatch) {
-    const viewerId = getAuthUserId(req, tokenToUser);
+    const viewerId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     const id = decodeURIComponent(postMatch[1]);
     const post = posts.find((p) => p.id === id);
     if (!post) return json(res, 404, { error: "Not Found" });
@@ -845,7 +863,7 @@ const server = http.createServer(async (req, res) => {
 
   const likeMatch = url.pathname.match(/^\/posts\/([^/]+)\/like$/);
   if (req.method === "POST" && likeMatch) {
-    const userId = getAuthUserId(req, tokenToUser);
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     const id = decodeURIComponent(likeMatch[1]);
     const post = posts.find((p) => p.id === id);
@@ -878,7 +896,7 @@ const server = http.createServer(async (req, res) => {
 
   const commentMatch = url.pathname.match(/^\/posts\/([^/]+)\/comments$/);
   if (req.method === "POST" && commentMatch) {
-    const userId = getAuthUserId(req, tokenToUser);
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     const id = decodeURIComponent(commentMatch[1]);
     const post = posts.find((p) => p.id === id);
@@ -915,7 +933,7 @@ const server = http.createServer(async (req, res) => {
 
   const followMatch = url.pathname.match(/^\/users\/([^/]+)\/follow$/);
   if (req.method === "POST" && followMatch) {
-    const userId = getAuthUserId(req, tokenToUser);
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     const targetId = decodeURIComponent(followMatch[1]);
     if (!targetId) return json(res, 400, { error: "target required" });
@@ -947,14 +965,14 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "GET" && url.pathname === "/users/me/following") {
-    const userId = getAuthUserId(req, tokenToUser);
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     const set = follows.get(userId) || new Set();
     return json(res, 200, { items: Array.from(set) });
   }
 
   if (req.method === "GET" && url.pathname === "/notifications") {
-    const userId = getAuthUserId(req, tokenToUser);
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     const items = notifications
       .filter((n) => n.toUserId === userId)
@@ -974,7 +992,7 @@ const server = http.createServer(async (req, res) => {
 
   const notificationReadMatch = url.pathname.match(/^\/notifications\/([^/]+)\/read$/);
   if (req.method === "POST" && notificationReadMatch) {
-    const userId = getAuthUserId(req, tokenToUser);
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     const id = decodeURIComponent(notificationReadMatch[1]);
     const n = notifications.find((x) => x.id === id);
@@ -987,7 +1005,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "POST" && url.pathname === "/notifications/read-all") {
-    const userId = getAuthUserId(req, tokenToUser);
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     const now = Date.now();
     markDirty();
@@ -1054,13 +1072,48 @@ function readJson(req) {
   });
 }
 
-function getAuthUserId(req, tokenToUserMap) {
+function getAuthToken(req) {
   const raw = req.headers.authorization || "";
   const m = String(raw).match(/^Bearer\s+(.+)$/i);
   if (!m) return null;
   const token = m[1].trim();
+  return token || null;
+}
+
+function revokeToken(token, tokenToUserMap, tokenMetaMap, userTokensMap) {
+  if (!token) return;
+  markDirty();
+  const meta = tokenMetaMap.get(token);
+  tokenToUserMap.delete(token);
+  tokenMetaMap.delete(token);
+  const userId = meta?.userId || null;
+  if (userId) {
+    const set = userTokensMap.get(userId);
+    if (set && set.delete) {
+      set.delete(token);
+      if (set.size === 0) userTokensMap.delete(userId);
+      else userTokensMap.set(userId, set);
+    }
+  }
+}
+
+function revokeAllUserTokens(userId, tokenToUserMap, tokenMetaMap, userTokensMap) {
+  const set = userTokensMap.get(userId);
+  if (!set || !set.size) return;
+  for (const token of Array.from(set.values())) {
+    revokeToken(token, tokenToUserMap, tokenMetaMap, userTokensMap);
+  }
+}
+
+function getAuthUserId(req, tokenToUserMap, tokenMetaMap, userTokensMap) {
+  const token = getAuthToken(req);
   if (!token) return null;
-  return tokenToUserMap.get(token) || null;
+  const meta = tokenMetaMap.get(token);
+  if (meta && typeof meta.expiresAt === "number" && Date.now() > meta.expiresAt) {
+    revokeToken(token, tokenToUserMap, tokenMetaMap, userTokensMap);
+    return null;
+  }
+  return tokenToUserMap.get(token) || meta?.userId || null;
 }
 
 function viewPostDetail(post, viewerId) {

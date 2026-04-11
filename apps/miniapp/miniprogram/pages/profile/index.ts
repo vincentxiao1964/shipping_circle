@@ -1,6 +1,6 @@
 import { setLocale, syncPageI18n, t, type Locale, type MessageKey } from "../../utils/i18n";
-import { clearToken, getApiConfig, getToken, setApiBaseUrl } from "../../services/api";
-import { clearUser, getUserId } from "../../services/auth";
+import { getApiConfig, getToken, setApiBaseUrl } from "../../services/api";
+import { clearUser, getUserId, logoutRemote } from "../../services/auth";
 import { getMe, getUserStats, updateMeDisplayName } from "../../services/users";
 
 const I18N_KEYS = [
@@ -50,9 +50,10 @@ Page({
   },
   onTapAuth() {
     if (this.data.isAuthed) {
-      clearToken();
-      clearUser();
-      this.updateView();
+      logoutRemote().finally(() => {
+        clearUser();
+        this.updateView();
+      });
       return;
     }
     wx.navigateTo({ url: "/pages/login/index" });

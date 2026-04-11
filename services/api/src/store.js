@@ -17,6 +17,8 @@ export function markDirty() {
 export function initStore() {
   const state = {
     tokenToUser: new Map(),
+    tokenMeta: new Map(),
+    userTokens: new Map(),
     users: new Map(),
     userStats: new Map(),
     posts: [],
@@ -90,6 +92,8 @@ function applySnapshot(target, s) {
   target.notifications.splice(0, target.notifications.length, ...notifications);
 
   const tokenToUser = Array.isArray(s?.tokenToUser) ? s.tokenToUser : [];
+  const tokenMeta = Array.isArray(s?.tokenMeta) ? s.tokenMeta : [];
+  const userTokens = Array.isArray(s?.userTokens) ? s.userTokens : [];
   const users = Array.isArray(s?.users) ? s.users : [];
   const userStats = Array.isArray(s?.userStats) ? s.userStats : [];
   const companyFollows = Array.isArray(s?.companyFollows) ? s.companyFollows : [];
@@ -97,6 +101,23 @@ function applySnapshot(target, s) {
 
   target.tokenToUser.clear();
   for (const [k, v] of tokenToUser) target.tokenToUser.set(k, v);
+  target.tokenMeta.clear();
+  for (const [k, v] of tokenMeta) target.tokenMeta.set(k, v);
+  target.userTokens.clear();
+  for (const [uid, ids] of userTokens) target.userTokens.set(uid, new Set(Array.isArray(ids) ? ids : []));
+
+  if (target.tokenMeta.size === 0 && target.tokenToUser.size > 0) {
+    const now = Date.now();
+    const ttlMs = 30 * 24 * 60 * 60 * 1000;
+    for (const [token, userId] of target.tokenToUser.entries()) {
+      target.tokenMeta.set(token, { userId, createdAt: now, expiresAt: now + ttlMs });
+      const set = target.userTokens.get(userId) || new Set();
+      set.add(token);
+      target.userTokens.set(userId, set);
+    }
+    markDirty();
+  }
+
   target.users.clear();
   for (const [k, v] of users) target.users.set(k, v);
   target.userStats.clear();
@@ -112,6 +133,8 @@ function snapshotState(state) {
   return {
     version: 1,
     tokenToUser: Array.from(state.tokenToUser.entries()),
+    tokenMeta: Array.from(state.tokenMeta.entries()),
+    userTokens: Array.from(state.userTokens.entries()).map(([uid, set]) => [uid, Array.from(set.values())]),
     users: Array.from(state.users.entries()),
     userStats: Array.from(state.userStats.entries()),
     posts: state.posts,
@@ -129,6 +152,8 @@ function defaultState() {
   return {
     version: 1,
     tokenToUser: [],
+    tokenMeta: [],
+    userTokens: [],
     users: [],
     userStats: [],
     posts: [

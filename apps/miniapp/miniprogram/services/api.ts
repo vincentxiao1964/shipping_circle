@@ -23,16 +23,28 @@ export function setApiBaseUrl(baseUrl: string) {
 
 export function getToken(): string | null {
   const token = safeGetStorage("sc_token");
+  const expiresAt = safeGetStorage("sc_token_expiresAt");
+  if (typeof expiresAt === "number" && expiresAt > 0 && Date.now() > expiresAt) {
+    clearToken();
+    return null;
+  }
   return typeof token === "string" && token ? token : null;
 }
 
-export function setToken(token: string) {
+export function setToken(token: string, expiresAt?: number) {
   wx.setStorageSync("sc_token", token);
+  if (typeof expiresAt === "number" && expiresAt > 0) wx.setStorageSync("sc_token_expiresAt", expiresAt);
+  else {
+    try {
+      wx.removeStorageSync("sc_token_expiresAt");
+    } catch {}
+  }
 }
 
 export function clearToken() {
   try {
     wx.removeStorageSync("sc_token");
+    wx.removeStorageSync("sc_token_expiresAt");
   } catch {}
 }
 
@@ -59,6 +71,9 @@ export async function requestJson<TResponse>(
         if (res.statusCode >= 200 && res.statusCode < 300) {
           resolve(res.data as TResponse);
           return;
+        }
+        if (res.statusCode === 401) {
+          clearToken();
         }
         reject(new Error(`HTTP ${res.statusCode}`));
       },

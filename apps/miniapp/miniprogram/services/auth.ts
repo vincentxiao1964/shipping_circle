@@ -1,7 +1,8 @@
-import { requestJson, setToken } from "./api";
+import { clearToken, requestJson, setToken } from "./api";
 
 export type LoginResponse = {
   token: string;
+  expiresAt?: number;
   user: {
     id: string;
     displayName?: string;
@@ -10,10 +11,17 @@ export type LoginResponse = {
 
 export async function loginWithWeChatCode(code: string): Promise<LoginResponse> {
   const res = await requestJson<LoginResponse>("POST", "/auth/wechat", { code }, null);
-  setToken(res.token);
+  setToken(res.token, typeof res.expiresAt === "number" ? res.expiresAt : undefined);
   wx.setStorageSync("sc_userId", res.user.id);
   if (res.user.displayName) wx.setStorageSync("sc_displayName", res.user.displayName);
   return res;
+}
+
+export async function logoutRemote(): Promise<void> {
+  try {
+    await requestJson<{ ok: boolean }>("POST", "/auth/logout", {}, null);
+  } catch {}
+  clearToken();
 }
 
 export function getUserId(): string | null {
