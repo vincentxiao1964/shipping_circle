@@ -29,6 +29,8 @@ const I18N_KEYS = [
   "contact.batchReplaceToTitle",
   "contact.batchReplaceToPlaceholder",
   "contact.batchReplaced",
+  "contact.batchReplaceResultTitle",
+  "contact.batchReplaceResult",
   "contact.copy",
   "contact.copied",
   "contact.stale",
@@ -186,8 +188,18 @@ Page({
             if (!r2.confirm) return;
             const to = String((r2 as any).content || "");
             batchReplaceContactChannel({ ids, from, to })
-              .then((ok) => {
-                if (!ok) throw new Error("failed");
+              .then((res) => {
+                if (!res) throw new Error("failed");
+                wx.showModal({
+                  title: t("contact.batchReplaceResultTitle"),
+                  content: t("contact.batchReplaceResult", {
+                    ok: res.okCount,
+                    unchanged: res.unchangedCount,
+                    conflict: res.conflictCount,
+                    notFound: res.notFoundCount
+                  }),
+                  showCancel: false
+                });
                 wx.showToast({ title: t("contact.batchReplaced"), icon: "success" });
                 this.setData({ selectedIds: [], selectedText: t("contact.selectedCount", { count: 0 }) });
                 this.load();

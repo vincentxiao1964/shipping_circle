@@ -459,6 +459,8 @@ test("contacts: batchUpdate replaceChannel works", async () => {
       body: JSON.stringify({ op: "replaceChannel", ids: [contact.id], from: "wechat:", to: "wx:" })
     });
     assert.equal(updResp.status, 200);
+    const upd = await updResp.json();
+    assert.equal(upd.okCount, 1);
 
     const listVerified2 = await fetch(`${base}/contacts/list?companyId=${encodeURIComponent(companyId)}&statuses=${encodeURIComponent("verified")}`, {
       headers: { Authorization: `Bearer ${loginOwner.token}` }

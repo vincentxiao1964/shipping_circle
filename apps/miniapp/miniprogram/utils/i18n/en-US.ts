@@ -90,6 +90,8 @@ export const enUS = {
   "contact.batchReplaceToTitle": "With",
   "contact.batchReplaceToPlaceholder": "e.g. wx:",
   "contact.batchReplaced": "Batch updated",
+  "contact.batchReplaceResultTitle": "Batch result",
+  "contact.batchReplaceResult": "OK: {ok}, unchanged: {unchanged}, conflict: {conflict}, not found: {notFound}",
   "tools.title": "Networking Toolbox",
   "tools.subtitle": "Find company owners, introduce, earn help points",
   "tools.entry.search": "Find company owners",

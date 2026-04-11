@@ -140,16 +140,30 @@ export async function batchInvalidateContacts(ids: string[], reason: string): Pr
   }
 }
 
-export async function batchReplaceContactChannel(input: { ids: string[]; from: string; to: string }): Promise<boolean> {
+export async function batchReplaceContactChannel(input: {
+  ids: string[];
+  from: string;
+  to: string;
+}): Promise<{ okCount: number; conflictCount: number; unchangedCount: number; notFoundCount: number } | null> {
   const ids = Array.isArray(input.ids) ? input.ids.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 50) : [];
   const from = String(input.from || "");
   const to = String(input.to || "");
-  if (ids.length === 0) return false;
-  if (!from) return false;
+  if (ids.length === 0) return null;
+  if (!from) return null;
   try {
-    await requestJson("POST", "/contacts/batchUpdate", { op: "replaceChannel", ids, from, to });
-    return true;
+    const res = await requestJson<{
+      okCount: number;
+      conflictIds: string[];
+      unchangedIds: string[];
+      notFound: string[];
+    }>("POST", "/contacts/batchUpdate", { op: "replaceChannel", ids, from, to });
+    return {
+      okCount: Number(res?.okCount || 0),
+      conflictCount: Array.isArray(res?.conflictIds) ? res.conflictIds.length : 0,
+      unchangedCount: Array.isArray(res?.unchangedIds) ? res.unchangedIds.length : 0,
+      notFoundCount: Array.isArray(res?.notFound) ? res.notFound.length : 0
+    };
   } catch {
-    return false;
+    return null;
   }
 }

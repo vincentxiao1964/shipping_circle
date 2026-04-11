@@ -90,6 +90,8 @@ export const zhCN = {
   "contact.batchReplaceToTitle": "替换为",
   "contact.batchReplaceToPlaceholder": "例如 wx:",
   "contact.batchReplaced": "已批量更新",
+  "contact.batchReplaceResultTitle": "批量更新结果",
+  "contact.batchReplaceResult": "成功：{ok}，无变化：{unchanged}，冲突：{conflict}，未找到：{notFound}",
   "tools.title": "人脉工具箱",
   "tools.subtitle": "找公司负责人、引荐、积累助人分",
   "tools.entry.search": "找公司负责人",
