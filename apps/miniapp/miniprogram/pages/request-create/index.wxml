@@ -19,6 +19,21 @@
       bindblur="onBlurCompanyName"
       placeholder="{{i18n['request.companyName']}}"
     />
+    <view class="card" style="margin-top: 12rpx;" wx:if="{{companySuggestVisible && companySuggestItems.length > 0}}">
+      <view class="muted" style="margin-bottom: 8rpx;">{{i18n["request.companySuggest"]}}</view>
+      <view
+        class="row"
+        style="padding: 12rpx 0;"
+        wx:for="{{companySuggestItems}}"
+        wx:key="id"
+        data-id="{{item.id}}"
+        data-name="{{item.name}}"
+        catchtap="onTapSelectCompany"
+      >
+        <view style="font-weight: 600;">{{item.name}}</view>
+        <view class="muted" style="font-size: 24rpx;" wx:if="{{item.region}}">{{item.region}}</view>
+      </view>
+    </view>
     <view class="muted" style="margin-top: 12rpx;">{{i18n["request.tags"]}}</view>
     <input
       style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"

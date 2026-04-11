@@ -130,6 +130,7 @@ export const enUS = {
   "request.tagsCustom": "Custom…",
   "request.businessRequired": "Select at least one business",
   "request.companyMatched": "Matched: {name}",
+  "request.companySuggest": "Select company",
   "request.content": "Request",
   "request.publish": "Publish",
   "request.save": "Save",

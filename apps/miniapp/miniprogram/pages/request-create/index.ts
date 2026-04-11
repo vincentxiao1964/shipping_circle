@@ -1,6 +1,6 @@
 import { createRequest, listPopularTags } from "../../services/requests";
 import { getToken } from "../../services/api";
-import { resolveCompanyByName } from "../../services/companies";
+import { listCompaniesPage, resolveCompanyByName, type CompanyListItem } from "../../services/companies";
 import { syncPageI18n, t, type MessageKey } from "../../utils/i18n";
 
 const I18N_KEYS = [
@@ -12,6 +12,7 @@ const I18N_KEYS = [
   "request.tagsCustom",
   "request.businessRequired",
   "request.companyMatched",
+  "request.companySuggest",
   "request.content",
   "request.publish",
   "common.ok",
@@ -26,6 +27,8 @@ Page({
     title: "",
     companyId: "",
     companyName: "",
+    companySuggestItems: [] as CompanyListItem[],
+    companySuggestVisible: false,
     tagsInput: "",
     businesses: [] as string[],
     content: "",
@@ -52,6 +55,10 @@ Page({
   onUnload() {
     const timer = (this as any)._resolveTimer as any;
     if (timer) clearTimeout(timer);
+    const t2 = (this as any)._suggestTimer as any;
+    if (t2) clearTimeout(t2);
+    const t3 = (this as any)._blurHideTimer as any;
+    if (t3) clearTimeout(t3);
   },
   onInputTitle(e: WechatMiniprogram.Input) {
     this.setData({ title: e.detail.value });
@@ -59,9 +66,29 @@ Page({
   onInputCompanyName(e: WechatMiniprogram.Input) {
     this.setData({ companyName: e.detail.value, companyId: "" });
     this.scheduleResolveCompany();
+    this.scheduleCompanySuggest();
   },
   onBlurCompanyName() {
     this.resolveCompanyNow();
+    const t3 = (this as any)._blurHideTimer as any;
+    if (t3) clearTimeout(t3);
+    (this as any)._blurHideTimer = setTimeout(() => {
+      this.setData({ companySuggestVisible: false });
+    }, 200);
+  },
+  onTapSelectCompany(e: WechatMiniprogram.BaseEvent) {
+    const id = (e.currentTarget as any)?.dataset?.id as string | undefined;
+    const name = (e.currentTarget as any)?.dataset?.name as string | undefined;
+    if (!id) return;
+    const t3 = (this as any)._blurHideTimer as any;
+    if (t3) clearTimeout(t3);
+    this.setData({
+      companyId: id,
+      companyName: name || this.data.companyName,
+      companySuggestVisible: false,
+      companySuggestItems: []
+    });
+    wx.showToast({ title: t("request.companyMatched", { name: name || this.data.companyName }), icon: "none" });
   },
   onInputContent(e: WechatMiniprogram.Input) {
     this.setData({ content: e.detail.value });
@@ -101,6 +128,32 @@ Page({
         wx.showToast({ title: t("request.companyMatched", { name: item.name || name }), icon: "none" });
       })
       .catch(() => {});
+  },
+  scheduleCompanySuggest() {
+    const timer = (this as any)._suggestTimer as any;
+    if (timer) clearTimeout(timer);
+    (this as any)._suggestTimer = setTimeout(() => this.loadCompanySuggest(), 250);
+  },
+  loadCompanySuggest() {
+    const q = this.data.companyName.trim();
+    if (!q) {
+      this.setData({ companySuggestItems: [], companySuggestVisible: false });
+      return;
+    }
+    if (this.data.companyId) {
+      this.setData({ companySuggestItems: [], companySuggestVisible: false });
+      return;
+    }
+    listCompaniesPage({ q, limit: 6 })
+      .then((page) => {
+        const items = Array.isArray(page?.items) ? page.items : [];
+        if (this.data.companyId) return;
+        if (this.data.companyName.trim() !== q) return;
+        this.setData({ companySuggestItems: items, companySuggestVisible: items.length > 0 });
+      })
+      .catch(() => {
+        this.setData({ companySuggestItems: [], companySuggestVisible: false });
+      });
   },
   onTapPickTags() {
     listPopularTags({ limit: 12 })
