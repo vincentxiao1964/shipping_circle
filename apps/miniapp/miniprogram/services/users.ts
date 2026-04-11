@@ -3,6 +3,12 @@ import { requestJson } from "./api";
 export type UserProfile = {
   id: string;
   displayName: string;
+  companyId?: string;
+  companyName?: string;
+  businesses?: string[];
+  title?: string;
+  contactChannel?: string;
+  contactVisibility?: "loggedIn" | "mutual" | "private";
 };
 
 type UserItemResponse = {
@@ -98,8 +104,20 @@ export async function getUserFollowingPage(input: { id: string; limit: number; c
 }
 
 export async function updateMeDisplayName(displayName: string): Promise<UserProfile | null> {
+  return updateMeProfile({ displayName });
+}
+
+export async function updateMeProfile(input: {
+  displayName: string;
+  companyId?: string;
+  companyName?: string;
+  businesses?: string[];
+  title?: string;
+  contactChannel?: string;
+  contactVisibility?: "loggedIn" | "mutual" | "private";
+}): Promise<UserProfile | null> {
   try {
-    const res = await requestJson<UserItemResponse>("PUT", "/users/me", { displayName });
+    const res = await requestJson<UserItemResponse>("PUT", "/users/me", input);
     return res?.item ?? null;
   } catch {
     return null;

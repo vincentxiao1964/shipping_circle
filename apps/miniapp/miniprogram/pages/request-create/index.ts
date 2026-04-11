@@ -1,6 +1,7 @@
 import { createRequest, listPopularTags } from "../../services/requests";
 import { getToken } from "../../services/api";
 import { listCompaniesPage, resolveCompanyByName, type CompanyListItem } from "../../services/companies";
+import { getMe } from "../../services/users";
 import { syncPageI18n, t, type MessageKey } from "../../utils/i18n";
 
 const I18N_KEYS = [
@@ -14,6 +15,8 @@ const I18N_KEYS = [
   "request.businessRequired",
   "request.companyMatched",
   "request.companySuggest",
+  "request.ownerContactChannel",
+  "request.ownerContactChannelHint",
   "request.content",
   "request.publish",
   "common.ok",
@@ -32,6 +35,7 @@ Page({
     companySuggestVisible: false,
     tagsInput: "",
     businesses: [] as string[],
+    ownerContactChannel: "",
     content: "",
     loading: false
   },
@@ -52,6 +56,13 @@ Page({
     syncPageI18n(this, I18N_KEYS);
     wx.setNavigationBarTitle({ title: t("request.createTitle") });
     if (!getToken()) wx.navigateTo({ url: "/pages/login/index" });
+    if (getToken() && !this.data.ownerContactChannel) {
+      getMe().then((me) => {
+        if (!me?.contactChannel) return;
+        if (this.data.ownerContactChannel) return;
+        this.setData({ ownerContactChannel: me.contactChannel });
+      });
+    }
   },
   onUnload() {
     const timer = (this as any)._resolveTimer as any;
@@ -114,6 +125,9 @@ Page({
   },
   onInputContent(e: WechatMiniprogram.Input) {
     this.setData({ content: e.detail.value });
+  },
+  onInputOwnerContactChannel(e: WechatMiniprogram.Input) {
+    this.setData({ ownerContactChannel: e.detail.value });
   },
   onInputTags(e: WechatMiniprogram.Input) {
     const tagsInput = e.detail.value;
@@ -216,6 +230,7 @@ Page({
     const title = this.data.title.trim();
     const companyId = this.data.companyId.trim();
     const companyName = this.data.companyName.trim();
+    const ownerContactChannel = this.data.ownerContactChannel.trim();
     const content = this.data.content.trim();
     const tags = parseBusinesses(this.data.tagsInput);
     if (tags.length === 0) {
@@ -227,7 +242,7 @@ Page({
       return;
     }
     this.setData({ loading: true });
-    createRequest({ title, companyId, companyName, content, tags })
+    createRequest({ title, companyId, companyName, ownerContactChannel, content, tags })
       .then((item) => {
         wx.showToast({ title: t("common.ok"), icon: "success" });
         wx.redirectTo({ url: `/pages/request-detail/index?id=${encodeURIComponent(item.id)}` });

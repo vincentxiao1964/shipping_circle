@@ -155,7 +155,18 @@ const server = http.createServer(async (req, res) => {
     const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     const u = ensureUser(userId);
-    return json(res, 200, { item: { id: u.id, displayName: u.displayName } });
+    return json(res, 200, {
+      item: {
+        id: u.id,
+        displayName: u.displayName,
+        companyId: u.companyId || "",
+        companyName: u.companyName || "",
+        businesses: Array.isArray(u.businesses) ? u.businesses : [],
+        title: u.title || "",
+        contactChannel: u.contactChannel || "",
+        contactVisibility: u.contactVisibility || "loggedIn"
+      }
+    });
   }
 
   if (req.method === "PUT" && url.pathname === "/users/me") {
@@ -163,12 +174,49 @@ const server = http.createServer(async (req, res) => {
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     const body = await readJson(req).catch(() => null);
     const displayName = typeof body?.displayName === "string" ? body.displayName.trim() : "";
+    const companyId = typeof body?.companyId === "string" ? body.companyId.trim() : "";
+    const companyName = typeof body?.companyName === "string" ? body.companyName.trim() : "";
+    const businesses = Array.isArray(body?.businesses)
+      ? body.businesses.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 20)
+      : [];
+    const title = typeof body?.title === "string" ? body.title.trim() : "";
+    const contactChannel = typeof body?.contactChannel === "string" ? body.contactChannel.trim() : "";
+    const contactVisibility = typeof body?.contactVisibility === "string" ? body.contactVisibility.trim() : "";
     if (!displayName) return json(res, 400, { error: "displayName required" });
     const u = ensureUser(userId);
     markDirty();
     u.displayName = displayName.slice(0, 40);
+    const companyFromId = companyId ? companies.find((x) => x.id === companyId) : null;
+    const companyFromName =
+      !companyFromId && companyName
+        ? companies.find((x) => normalizeCompany(x?.name || "") === normalizeCompany(companyName)) ||
+          companies.find((x) => Array.isArray(x?.aliases) && x.aliases.some((a) => normalizeCompany(a) === normalizeCompany(companyName)))
+        : null;
+    const finalCompany = companyFromId || companyFromName;
+    u.companyId = finalCompany ? finalCompany.id : "";
+    u.companyName = finalCompany ? finalCompany.name : companyName.slice(0, 120);
+    u.businesses = businesses;
+    u.title = title.slice(0, 120);
+    u.contactChannel = contactChannel.slice(0, 200);
+    if (contactVisibility === "loggedIn" || contactVisibility === "mutual" || contactVisibility === "private") {
+      u.contactVisibility = contactVisibility;
+    } else if (!u.contactVisibility) {
+      u.contactVisibility = "loggedIn";
+    }
     users.set(userId, u);
-    return json(res, 200, { item: { id: u.id, displayName: u.displayName } });
+    upsertSelfClaimedContactsFromUser(u);
+    return json(res, 200, {
+      item: {
+        id: u.id,
+        displayName: u.displayName,
+        companyId: u.companyId || "",
+        companyName: u.companyName || "",
+        businesses: Array.isArray(u.businesses) ? u.businesses : [],
+        title: u.title || "",
+        contactChannel: u.contactChannel || "",
+        contactVisibility: u.contactVisibility || "loggedIn"
+      }
+    });
   }
 
   if (req.method === "GET" && url.pathname === "/users") {
@@ -850,7 +898,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "POST" && url.pathname === "/requests") {
     const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
-    ensureUser(userId);
+    const u = ensureUser(userId);
     ensureUserStats(userId);
 
     const body = await readJson(req).catch(() => null);
@@ -858,6 +906,7 @@ const server = http.createServer(async (req, res) => {
     const content = typeof body?.content === "string" ? body.content.trim() : "";
     const companyId = typeof body?.companyId === "string" ? body.companyId.trim() : "";
     const companyName = typeof body?.companyName === "string" ? body.companyName.trim() : "";
+    const ownerContactChannel = typeof body?.ownerContactChannel === "string" ? body.ownerContactChannel.trim() : "";
     const tags = Array.isArray(body?.tags)
       ? body.tags.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 10)
       : [];
@@ -872,6 +921,12 @@ const server = http.createServer(async (req, res) => {
     const finalCompany = companyFromId || companyFromName;
     const finalCompanyId = finalCompany ? finalCompany.id : "";
     const finalCompanyName = finalCompany ? finalCompany.name : companyName;
+    const finalOwnerContactChannel = (ownerContactChannel || String(u.contactChannel || "")).trim().slice(0, 200);
+    if (ownerContactChannel && !String(u.contactChannel || "").trim()) {
+      u.contactChannel = ownerContactChannel.slice(0, 200);
+      users.set(userId, u);
+      upsertSelfClaimedContactsFromUser(u);
+    }
 
     const reqItem = {
       id: `r_${Date.now()}_${Math.random().toString(16).slice(2)}`,
@@ -880,6 +935,7 @@ const server = http.createServer(async (req, res) => {
       content: content.slice(0, 2000),
       companyId: finalCompanyId,
       companyName: String(finalCompanyName || "").slice(0, 120),
+      ownerContactChannel: finalOwnerContactChannel,
       tags,
       status: "open",
       createdAt: Date.now()
@@ -889,7 +945,7 @@ const server = http.createServer(async (req, res) => {
     return json(res, 201, {
       item: {
         ...reqItem,
-        ownerDisplayName: ensureUser(userId).displayName,
+        ownerDisplayName: u.displayName,
         introCount: 0,
         isMine: true
       }
@@ -930,6 +986,7 @@ const server = http.createServer(async (req, res) => {
         content: r.content,
         companyId: r.companyId || "",
         companyName: r.companyName || "",
+        ownerContactChannel: viewerId ? String(r.ownerContactChannel || "") : "",
         tags: Array.isArray(r.tags) ? r.tags : [],
         status: r.status || "open",
         createdAt: r.createdAt,
@@ -953,12 +1010,13 @@ const server = http.createServer(async (req, res) => {
     const content = typeof body?.content === "string" ? body.content.trim() : "";
     const companyId = typeof body?.companyId === "string" ? body.companyId.trim() : "";
     const companyName = typeof body?.companyName === "string" ? body.companyName.trim() : "";
+    const ownerContactChannel = typeof body?.ownerContactChannel === "string" ? body.ownerContactChannel.trim() : "";
     const status = typeof body?.status === "string" ? body.status.trim() : "";
     const tags = Array.isArray(body?.tags)
       ? body.tags.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 10)
       : null;
 
-    const willChange = Boolean(title || content || companyId || companyName || tags || status);
+    const willChange = Boolean(title || content || companyId || companyName || ownerContactChannel || tags || status);
     if (willChange) markDirty();
     if (title) r.title = title.slice(0, 80);
     if (content) r.content = content.slice(0, 2000);
@@ -971,6 +1029,7 @@ const server = http.createServer(async (req, res) => {
       r.companyName = companyName.slice(0, 120);
     }
     if (tags) r.tags = tags;
+    if (ownerContactChannel) r.ownerContactChannel = ownerContactChannel.slice(0, 200);
     if (status === "open" || status === "closed") r.status = status;
 
     return json(res, 200, {
@@ -982,6 +1041,7 @@ const server = http.createServer(async (req, res) => {
         content: r.content,
         companyId: r.companyId || "",
         companyName: r.companyName || "",
+        ownerContactChannel: String(r.ownerContactChannel || ""),
         tags: Array.isArray(r.tags) ? r.tags : [],
         status: r.status || "open",
         createdAt: r.createdAt,
@@ -1654,7 +1714,18 @@ function ensureUser(userId, opts) {
   markDirty();
   const displayName = userId === "system" ? "System" : `User ${userId.slice(-4)}`;
   const openid = typeof opts?.openid === "string" ? opts.openid : "";
-  const u = { id: userId, displayName, openid, createdAt: Date.now() };
+  const u = {
+    id: userId,
+    displayName,
+    openid,
+    companyId: "",
+    companyName: "",
+    businesses: [],
+    title: "",
+    contactChannel: "",
+    contactVisibility: "loggedIn",
+    createdAt: Date.now()
+  };
   users.set(userId, u);
   ensureUserStats(userId);
   return u;
@@ -1705,6 +1776,65 @@ function normalizeChannel(input) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, "");
+}
+
+function upsertSelfClaimedContactsFromUser(u) {
+  const companyId = String(u?.companyId || "").trim();
+  const companyName = String(u?.companyName || "").trim();
+  const contactChannel = String(u?.contactChannel || "").trim();
+  const contactName = String(u?.displayName || "").trim();
+  const contactTitle = String(u?.title || "").trim();
+  const businesses = Array.isArray(u?.businesses) ? u.businesses.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 20) : [];
+  if (!companyId || !contactChannel || businesses.length === 0) return;
+
+  const now = Date.now();
+  for (const business of businesses) {
+    const businessKey = normalizeBusiness(business);
+    const channelKey = normalizeChannel(contactChannel);
+    const key = `${companyId}|${businessKey}|${channelKey}`;
+    const existing = contacts.find((c) => String(c?.key || "") === key);
+    if (existing) {
+      existing.companyId = companyId;
+      existing.companyName = companyName;
+      existing.business = business;
+      if (contactName) existing.contactName = contactName.slice(0, 80);
+      if (contactTitle) existing.contactTitle = contactTitle.slice(0, 120);
+      existing.contactChannel = contactChannel.slice(0, 200);
+      if (!existing.status) existing.status = "candidate";
+      existing.updatedAt = now;
+      existing.key = key;
+      existing.selfClaimedAt = now;
+      existing.sourceUserId = u.id;
+      markDirty();
+      continue;
+    }
+    const item = {
+      id: `ct_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      key,
+      companyId,
+      companyName,
+      business,
+      contactName: contactName.slice(0, 80),
+      contactTitle: contactTitle.slice(0, 120),
+      contactChannel: contactChannel.slice(0, 200),
+      clue: "",
+      createdAt: now,
+      updatedAt: now,
+      status: "candidate",
+      verifiedAt: 0,
+      successCount: 0,
+      failCount: 0,
+      lastFailureAt: 0,
+      lastFailureReason: "",
+      selfClaimedAt: now,
+      sourceUserId: u.id,
+      createdByUserId: u.id,
+      lastSourceIntroId: "",
+      lastRequestId: ""
+    };
+    markDirty();
+    contacts.push(item);
+  }
 }
 
 function upsertVerifiedContactFromIntroduction(input) {

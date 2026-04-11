@@ -57,6 +57,13 @@
         </button>
       </block>
     </view>
+    <view class="muted" style="margin-top: 12rpx;">{{i18n["request.ownerContactChannel"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{ownerContactChannel}}"
+      bindinput="onInputOwnerContactChannel"
+      placeholder="{{i18n['request.ownerContactChannelHint']}}"
+    />
     <view class="muted" style="margin-top: 12rpx;">{{i18n["request.content"]}}</view>
     <textarea
       style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx; min-height: 240rpx;"

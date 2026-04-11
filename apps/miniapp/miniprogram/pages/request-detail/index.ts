@@ -50,6 +50,7 @@ const I18N_KEYS = [
   "request.closed",
   "request.companyName",
   "request.tags",
+  "request.ownerContactChannel",
   "request.success",
   "request.fail",
   "common.refresh",
@@ -166,12 +167,14 @@ Page({
     const tags = Array.isArray(this.data.item.tags) ? this.data.item.tags : [];
     const companyId = this.data.item.companyId || "";
     const companyName = this.data.item.companyName || "";
+    const ownerContactChannel = this.data.item.ownerContactChannel || "";
     this.setData({ loading: true });
     updateRequest({
       id: this.data.item.id,
       title: this.data.item.title,
       companyId,
       companyName,
+      ownerContactChannel,
       content: this.data.item.content,
       tags,
       status: nextStatus

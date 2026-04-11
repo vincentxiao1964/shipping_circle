@@ -14,6 +14,8 @@ const I18N_KEYS = [
   "request.businessRequired",
   "request.companyMatched",
   "request.companySuggest",
+  "request.ownerContactChannel",
+  "request.ownerContactChannelHint",
   "request.content",
   "request.save",
   "common.ok",
@@ -33,6 +35,7 @@ Page({
     companySuggestVisible: false,
     tagsInput: "",
     businesses: [] as string[],
+    ownerContactChannel: "",
     content: "",
     status: "open" as "open" | "closed",
     loading: false
@@ -161,6 +164,9 @@ Page({
   onInputContent(e: WechatMiniprogram.Input) {
     this.setData({ content: e.detail.value });
   },
+  onInputOwnerContactChannel(e: WechatMiniprogram.Input) {
+    this.setData({ ownerContactChannel: e.detail.value });
+  },
   onTapSave() {
     if (this.data.loading) return;
     if (!getToken()) {
@@ -170,6 +176,7 @@ Page({
     const title = this.data.title.trim();
     const companyId = this.data.companyId.trim();
     const companyName = this.data.companyName.trim();
+    const ownerContactChannel = this.data.ownerContactChannel.trim();
     const content = this.data.content.trim();
     const tags = parseBusinesses(this.data.tagsInput);
     if (tags.length === 0) {
@@ -181,7 +188,7 @@ Page({
       return;
     }
     this.setData({ loading: true });
-    updateRequest({ id: this.data.id, title, companyId, companyName, content, tags, status: this.data.status })
+    updateRequest({ id: this.data.id, title, companyId, companyName, ownerContactChannel, content, tags, status: this.data.status })
       .then(() => {
         wx.showToast({ title: t("common.ok"), icon: "success" });
         wx.redirectTo({ url: `/pages/request-detail/index?id=${encodeURIComponent(this.data.id)}` });
@@ -205,6 +212,7 @@ Page({
           companyId: r.companyId || "",
           companyName: r.companyName || "",
           content: r.content,
+          ownerContactChannel: r.ownerContactChannel || "",
           tagsInput: Array.isArray(r.tags) ? r.tags.join(", ") : "",
           businesses: Array.isArray(r.tags) ? parseBusinesses(r.tags.join(", ")) : [],
           status: r.status === "closed" ? "closed" : "open"

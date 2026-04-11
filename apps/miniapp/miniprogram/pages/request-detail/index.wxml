@@ -11,6 +11,10 @@
     <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.tags && item.tags.length > 0}}">
       {{i18n["request.tags"]}}：{{item.tags.join(", ")}}
     </view>
+    <view class="row" style="margin-top: 8rpx;" wx:if="{{item.ownerContactChannel}}">
+      <view class="muted">{{i18n["request.ownerContactChannel"]}}：{{item.ownerContactChannel}}</view>
+      <button size="mini" data-channel="{{item.ownerContactChannel}}" catchtap="onTapCopyContact">{{i18n["contact.copy"]}}</button>
+    </view>
     <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.status === 'closed'}}">
       {{i18n["request.closed"]}}
     </view>

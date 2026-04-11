@@ -8,6 +8,7 @@ export type RequestListItem = {
   title: string;
   companyId?: string;
   companyName?: string;
+  ownerContactChannel?: string;
   content: string;
   tags?: string[];
   status?: "open" | "closed";
@@ -75,6 +76,7 @@ export async function createRequest(input: {
   title: string;
   companyId?: string;
   companyName: string;
+  ownerContactChannel?: string;
   content: string;
   tags: string[];
 }): Promise<RequestListItem> {
@@ -91,6 +93,7 @@ export async function updateRequest(input: {
   title: string;
   companyId?: string;
   companyName: string;
+  ownerContactChannel?: string;
   content: string;
   tags: string[];
   status: "open" | "closed";
@@ -100,6 +103,7 @@ export async function updateRequest(input: {
       title: input.title,
       companyId: input.companyId || "",
       companyName: input.companyName,
+      ownerContactChannel: input.ownerContactChannel || "",
       content: input.content,
       tags: input.tags,
       status: input.status
@@ -226,6 +230,7 @@ type LocalRequest = {
   title: string;
   companyId?: string;
   companyName?: string;
+  ownerContactChannel?: string;
   content: string;
   tags?: string[];
   status?: "open" | "closed";
@@ -235,7 +240,14 @@ type LocalRequest = {
 
 const STORAGE_KEY = "sc_requests_v1";
 
-function createLocal(input: { title: string; companyId?: string; companyName: string; content: string; tags: string[] }): RequestListItem {
+function createLocal(input: {
+  title: string;
+  companyId?: string;
+  companyName: string;
+  ownerContactChannel?: string;
+  content: string;
+  tags: string[];
+}): RequestListItem {
   const me = getUserId() ?? "u_local";
   const all = readAll();
   const reqItem: LocalRequest = {
@@ -244,6 +256,7 @@ function createLocal(input: { title: string; companyId?: string; companyName: st
     title: input.title || "Untitled",
     companyId: input.companyId ? String(input.companyId) : "",
     companyName: input.companyName,
+    ownerContactChannel: input.ownerContactChannel ? String(input.ownerContactChannel) : "",
     content: input.content,
     tags: input.tags,
     status: "open",
@@ -259,6 +272,7 @@ function createLocal(input: { title: string; companyId?: string; companyName: st
     title: reqItem.title,
     companyId: reqItem.companyId || "",
     companyName: reqItem.companyName || "",
+    ownerContactChannel: reqItem.ownerContactChannel || "",
     content: reqItem.content,
     tags: Array.isArray(reqItem.tags) ? reqItem.tags : [],
     status: reqItem.status || "open",
@@ -273,6 +287,7 @@ function updateLocal(input: {
   title: string;
   companyId?: string;
   companyName: string;
+  ownerContactChannel?: string;
   content: string;
   tags: string[];
   status: "open" | "closed";
@@ -285,6 +300,7 @@ function updateLocal(input: {
   r.title = input.title || r.title;
   r.companyId = input.companyId ? String(input.companyId) : "";
   r.companyName = input.companyName;
+  r.ownerContactChannel = input.ownerContactChannel ? String(input.ownerContactChannel) : r.ownerContactChannel || "";
   r.content = input.content || r.content;
   r.tags = input.tags;
   r.status = input.status;
@@ -296,6 +312,7 @@ function updateLocal(input: {
     title: r.title,
     companyId: r.companyId || "",
     companyName: r.companyName || "",
+    ownerContactChannel: r.ownerContactChannel || "",
     content: r.content,
     tags: Array.isArray(r.tags) ? r.tags : [],
     status: r.status || "open",

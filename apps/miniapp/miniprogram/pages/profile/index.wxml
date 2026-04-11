@@ -63,8 +63,61 @@
       bindinput="onInputDisplayName"
       placeholder="{{i18n['me.displayNameHint']}}"
     />
-    <button size="mini" type="primary" style="margin-top: 12rpx;" bindtap="onTapSaveDisplayName">
-      {{i18n["me.saveDisplayName"]}}
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view style="font-weight: 600;">{{i18n["me.company"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{companyName}}"
+      bindinput="onInputCompanyName"
+      bindblur="onBlurCompanyName"
+      placeholder="{{i18n['me.companyHint']}}"
+    />
+    <view class="card" style="margin-top: 12rpx;" wx:if="{{companySuggestVisible && companySuggestItems.length > 0}}">
+      <view
+        class="row"
+        style="padding: 12rpx 0;"
+        wx:for="{{companySuggestItems}}"
+        wx:key="id"
+        data-id="{{item.id}}"
+        data-name="{{item.name}}"
+        catchtap="onTapSelectCompany"
+      >
+        <view style="font-weight: 600;">{{item.name}}</view>
+        <view class="muted" style="font-size: 24rpx;" wx:if="{{item.region}}">{{item.region}}</view>
+      </view>
+    </view>
+    <view style="font-weight: 600; margin-top: 16rpx;">{{i18n["me.businesses"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{businessesInput}}"
+      bindinput="onInputBusinesses"
+      placeholder="{{i18n['me.businessesHint']}}"
+    />
+    <view style="font-weight: 600; margin-top: 16rpx;">{{i18n["me.titleLabel"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{titleInput}}"
+      bindinput="onInputTitle"
+      placeholder="{{i18n['me.titleHint']}}"
+    />
+    <view style="font-weight: 600; margin-top: 16rpx;">{{i18n["me.contactChannel"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{contactChannelInput}}"
+      bindinput="onInputContactChannel"
+      placeholder="{{i18n['me.contactChannelHint']}}"
+    />
+    <view class="row" style="margin-top: 16rpx;">
+      <view>
+        <view style="font-weight: 600;">{{i18n["me.visibility"]}}</view>
+        <view class="muted" style="margin-top: 8rpx;">{{contactVisibilityText}}</view>
+      </view>
+      <button size="mini" bindtap="onTapPickVisibility">{{i18n["me.save"]}}</button>
+    </view>
+    <button size="mini" type="primary" style="margin-top: 12rpx;" bindtap="onTapSaveProfile">
+      {{i18n["me.saveProfile"]}}
     </button>
   </view>
 
