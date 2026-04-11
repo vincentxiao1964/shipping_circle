@@ -67,6 +67,8 @@ const server = http.createServer(async (req, res) => {
         "PUT /admin/companies/:id/aliases",
         "POST /admin/companies/merge",
         "POST /admin/normalizeChannels",
+        "GET /admin/contacts/conflicts",
+        "POST /admin/contacts/merge",
         "GET /requests",
         "POST /requests",
         "GET /requests/:id",
@@ -523,6 +525,133 @@ const server = http.createServer(async (req, res) => {
     const out = normalizeStoredChannels({ dryRun });
     notifyAdminNormalizeReport(out, "manual");
     return json(res, 200, out);
+  }
+
+  if (req.method === "GET" && url.pathname === "/admin/contacts/conflicts") {
+    if (!isAdmin(req)) return json(res, 403, { error: "Forbidden" });
+    const limitRaw = Number(url.searchParams.get("limit") || 50);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(1, limitRaw), 200) : 50;
+
+    const keyToContacts = new Map();
+    for (const c of contacts) {
+      if (!c) continue;
+      const key = String(c.key || "");
+      if (!key) continue;
+      const arr = keyToContacts.get(key) || [];
+      arr.push(c);
+      keyToContacts.set(key, arr);
+    }
+    const groups = Array.from(keyToContacts.entries())
+      .filter(([, arr]) => arr.length > 1)
+      .sort((a, b) => b[1].length - a[1].length || String(a[0]).localeCompare(String(b[0])))
+      .slice(0, limit)
+      .map(([key, arr]) => ({
+        key,
+        count: arr.length,
+        ids: arr.map((x) => x.id),
+        contacts: arr
+          .slice()
+          .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0))
+          .map((x) => ({
+            id: x.id,
+            companyId: x.companyId || "",
+            companyName: x.companyName || "",
+            business: x.business || "",
+            contactName: x.contactName || "",
+            contactTitle: x.contactTitle || "",
+            contactChannel: x.contactChannel || "",
+            status: String(x.status || ""),
+            verifiedAt: Number(x.verifiedAt || 0),
+            successCount: Number(x.successCount || 0),
+            failCount: Number(x.failCount || 0),
+            lastFailureAt: Number(x.lastFailureAt || 0),
+            lastFailureReason: x.lastFailureReason || "",
+            endorsedCount: Array.isArray(x.endorsedBy) ? x.endorsedBy.length : 0,
+            updatedAt: Number(x.updatedAt || 0),
+            createdAt: Number(x.createdAt || 0)
+          }))
+      }));
+    return json(res, 200, { items: groups });
+  }
+
+  if (req.method === "POST" && url.pathname === "/admin/contacts/merge") {
+    if (!isAdmin(req)) return json(res, 403, { error: "Forbidden" });
+    const body = await readJson(req).catch(() => null);
+    const keepId = typeof body?.keepId === "string" ? body.keepId.trim() : "";
+    const removeIds = Array.isArray(body?.removeIds) ? body.removeIds.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 50) : [];
+    if (!keepId) return json(res, 400, { error: "keepId required" });
+    if (removeIds.length === 0) return json(res, 400, { error: "removeIds required" });
+    if (removeIds.includes(keepId)) return json(res, 400, { error: "keepId cannot be in removeIds" });
+
+    const keep = contacts.find((x) => x && x.id === keepId);
+    if (!keep) return json(res, 404, { error: "keep not found" });
+    const removes = removeIds.map((id) => contacts.find((x) => x && x.id === id)).filter(Boolean);
+    if (removes.length !== removeIds.length) return json(res, 404, { error: "remove not found" });
+
+    const key = String(keep.key || "");
+    if (!key) return json(res, 400, { error: "keep.key required" });
+    for (const r of removes) {
+      if (String(r.key || "") !== key) return json(res, 400, { error: "all contacts must have same key" });
+    }
+
+    const all = [keep, ...removes];
+    const sum = (field) => all.reduce((acc, x) => acc + Number(x?.[field] || 0), 0);
+    const maxBy = (field) => all.slice().sort((a, b) => Number(b?.[field] || 0) - Number(a?.[field] || 0))[0] || null;
+
+    const now = Date.now();
+    const hasInvalid = all.some((x) => String(x.status || "") === "invalid");
+    const hasVerified = all.some((x) => String(x.status || "") === "verified" || Number(x.verifiedAt || 0) > 0);
+    if (hasInvalid) keep.status = "invalid";
+    else if (hasVerified) keep.status = "verified";
+    else if (!String(keep.status || "")) keep.status = "candidate";
+
+    keep.verifiedAt = hasVerified ? Math.max(...all.map((x) => Number(x.verifiedAt || 0))) : Number(keep.verifiedAt || 0);
+    keep.successCount = sum("successCount");
+    keep.failCount = sum("failCount");
+
+    const lastFail = maxBy("lastFailureAt");
+    keep.lastFailureAt = Number(lastFail?.lastFailureAt || 0);
+    keep.lastFailureReason = String(lastFail?.lastFailureReason || keep.lastFailureReason || "").slice(0, 80);
+
+    if (!String(keep.contactName || "").trim()) {
+      const v = all.map((x) => String(x.contactName || "").trim()).filter(Boolean).sort((a, b) => b.length - a.length)[0] || "";
+      if (v) keep.contactName = v.slice(0, 80);
+    }
+    if (!String(keep.contactTitle || "").trim()) {
+      const v = all.map((x) => String(x.contactTitle || "").trim()).filter(Boolean).sort((a, b) => b.length - a.length)[0] || "";
+      if (v) keep.contactTitle = v.slice(0, 120);
+    }
+    if (!String(keep.clue || "").trim()) {
+      const v = all.map((x) => String(x.clue || "").trim()).filter(Boolean).sort((a, b) => b.length - a.length)[0] || "";
+      if (v) keep.clue = v.slice(0, 1000);
+    }
+
+    const createdAtMin = Math.min(...all.map((x) => Number(x.createdAt || now)));
+    keep.createdAt = createdAtMin;
+    keep.updatedAt = now;
+
+    const endorsed = new Set();
+    for (const x of all) {
+      if (!Array.isArray(x.endorsedBy)) continue;
+      for (const uid of x.endorsedBy) endorsed.add(String(uid || "").trim());
+    }
+    keep.endorsedBy = Array.from(endorsed.values()).filter(Boolean).slice(0, 50);
+
+    const latest = maxBy("updatedAt") || maxBy("createdAt");
+    if (latest) {
+      if (latest.lastSourceIntroId) keep.lastSourceIntroId = String(latest.lastSourceIntroId || "");
+      if (latest.lastRequestId) keep.lastRequestId = String(latest.lastRequestId || "");
+      if (latest.sourceUserId) keep.sourceUserId = String(latest.sourceUserId || "");
+      if (latest.selfClaimedAt) keep.selfClaimedAt = Number(latest.selfClaimedAt || 0);
+      if (latest.createdByUserId && !keep.createdByUserId) keep.createdByUserId = String(latest.createdByUserId || "");
+    }
+
+    markDirty();
+    for (const rid of removeIds) {
+      const idx = contacts.findIndex((x) => x && x.id === rid);
+      if (idx >= 0) contacts.splice(idx, 1);
+    }
+    return json(res, 200, { ok: true, keepId, removedIds: removeIds });
   }
 
   const companyFollowMatch = url.pathname.match(/^\/companies\/([^/]+)\/follow$/);
