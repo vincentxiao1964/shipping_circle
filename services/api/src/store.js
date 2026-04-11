@@ -24,6 +24,8 @@ export function initStore() {
     posts: [],
     requests: [],
     introductions: [],
+    requestClaims: [],
+    requestComplaints: [],
     contacts: [],
     companies: [],
     companyFollows: new Map(),
@@ -83,6 +85,8 @@ function applySnapshot(target, s) {
   const posts = Array.isArray(s?.posts) ? s.posts : defaultState().posts;
   const requests = Array.isArray(s?.requests) ? s.requests : [];
   const introductions = Array.isArray(s?.introductions) ? s.introductions : [];
+  const requestClaims = Array.isArray(s?.requestClaims) ? s.requestClaims : [];
+  const requestComplaints = Array.isArray(s?.requestComplaints) ? s.requestComplaints : [];
   const contacts = Array.isArray(s?.contacts) ? s.contacts : [];
   const companies = Array.isArray(s?.companies) ? s.companies : defaultState().companies;
   const notifications = Array.isArray(s?.notifications) ? s.notifications : [];
@@ -90,6 +94,8 @@ function applySnapshot(target, s) {
   target.posts.splice(0, target.posts.length, ...posts);
   target.requests.splice(0, target.requests.length, ...requests);
   target.introductions.splice(0, target.introductions.length, ...introductions);
+  target.requestClaims.splice(0, target.requestClaims.length, ...requestClaims);
+  target.requestComplaints.splice(0, target.requestComplaints.length, ...requestComplaints);
   target.contacts.splice(0, target.contacts.length, ...contacts);
   target.companies.splice(0, target.companies.length, ...companies);
   target.notifications.splice(0, target.notifications.length, ...notifications);
@@ -143,6 +149,8 @@ function snapshotState(state) {
     posts: state.posts,
     requests: state.requests,
     introductions: state.introductions,
+    requestClaims: state.requestClaims,
+    requestComplaints: state.requestComplaints,
     contacts: state.contacts,
     companies: state.companies,
     companyFollows: Array.from(state.companyFollows.entries()).map(([uid, set]) => [uid, Array.from(set.values())]),
@@ -173,6 +181,8 @@ function defaultState() {
     ],
     requests: [],
     introductions: [],
+    requestClaims: [],
+    requestComplaints: [],
     contacts: [],
     companies: [
       {

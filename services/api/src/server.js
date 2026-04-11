@@ -13,6 +13,8 @@ const userStats = store.userStats;
 const posts = store.posts;
 const requests = store.requests;
 const introductions = store.introductions;
+const requestClaims = store.requestClaims;
+const requestComplaints = store.requestComplaints;
 const contacts = store.contacts;
 const companies = store.companies;
 const companyFollows = store.companyFollows;
@@ -29,6 +31,10 @@ const WX_APPID = String(process.env.WX_APPID || "").trim();
 const WX_SECRET = String(process.env.WX_SECRET || "").trim();
 const HAS_WX_CREDS = Boolean(WX_APPID && WX_SECRET);
 const ALLOW_DEV_MOCK_OPENID = String(process.env.ALLOW_DEV_MOCK_OPENID || "") === "1" || !HAS_WX_CREDS;
+
+const CLAIM_COMPLETE_POINTS = Number(process.env.CLAIM_COMPLETE_POINTS || 2);
+const COMPLAINT_PENALTY_POINTS = Number(process.env.COMPLAINT_PENALTY_POINTS || 5);
+const COMPLAINT_BLOCK_THRESHOLD = Number(process.env.COMPLAINT_BLOCK_THRESHOLD || 3);
 
 const server = http.createServer(async (req, res) => {
   setCors(res);
@@ -78,6 +84,10 @@ const server = http.createServer(async (req, res) => {
         "GET /requests/:id",
         "PUT /requests/:id",
         "GET /requests/:id/recommend-introducers",
+        "POST /requests/:id/claim",
+        "GET /requests/:id/claims",
+        "POST /requests/:id/claims/:claimId/complete",
+        "POST /requests/:id/claims/:claimId/complain",
         "POST /requests/:id/ping",
         "POST /requests/:id/introductions",
         "GET /tags",
@@ -292,6 +302,9 @@ const server = http.createServer(async (req, res) => {
         points: stats.points,
         introSuccessCount: stats.introSuccessCount,
         introFailCount: stats.introFailCount,
+        claimCompleteCount: Number(stats.claimCompleteCount || 0),
+        complaintCount: Number(stats.complaintCount || 0),
+        claimComplaintCount: Number(stats.claimComplaintCount || 0),
         topTags
       }
     });
@@ -1253,13 +1266,39 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    const complaintRecentCountByUser = new Map();
+    const COMPLAINT_RECENT_MS = 90 * 24 * 60 * 60 * 1000;
+    for (const c of requestComplaints) {
+      if (!c) continue;
+      const uid = String(c.toUserId || "").trim();
+      if (!uid) continue;
+      if (!c.createdAt || now - c.createdAt > COMPLAINT_RECENT_MS) continue;
+      complaintRecentCountByUser.set(uid, (complaintRecentCountByUser.get(uid) || 0) + 1);
+    }
+
     const rows = Array.from(byUser.values())
       .filter((x) => x.userId !== viewerId)
+      .filter((x) => {
+        const stats = ensureUserStats(x.userId);
+        const complaintCount = Number(stats.complaintCount || 0);
+        if (complaintCount >= COMPLAINT_BLOCK_THRESHOLD) return false;
+        const recent = complaintRecentCountByUser.get(x.userId) || 0;
+        if (recent >= 2) return false;
+        return true;
+      })
+      .map((x) => {
+        const stats = ensureUserStats(x.userId);
+        const complaintCount = Number(stats.complaintCount || 0);
+        const recent = complaintRecentCountByUser.get(x.userId) || 0;
+        const pointsBoost = Math.min(3, Math.floor(Number(stats.points || 0) / 20));
+        const complaintPenalty = complaintCount * 2 + recent * 3;
+        return { ...x, score: x.score + pointsBoost - complaintPenalty, complaintCount, points: Number(stats.points || 0) };
+      })
       .sort((a, b) => b.score - a.score || b.successCount - a.successCount)
       .slice(0, limit);
     const items = rows.map((r) => {
       const u = ensureUser(r.userId);
-      return { id: u.id, displayName: u.displayName, score: r.score, successCount: r.successCount };
+      return { id: u.id, displayName: u.displayName, score: r.score, successCount: r.successCount, complaintCount: r.complaintCount, points: r.points };
     });
     return json(res, 200, { items });
   }
@@ -1299,6 +1338,162 @@ const server = http.createServer(async (req, res) => {
     });
     markDirty();
     return json(res, 200, { ok: true, duplicated: false });
+  }
+
+  const requestClaimMatch = url.pathname.match(/^\/requests\/([^/]+)\/claim$/);
+  if (req.method === "POST" && requestClaimMatch) {
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!userId) return json(res, 401, { error: "Unauthorized" });
+    const id = decodeURIComponent(requestClaimMatch[1]);
+    const r = requests.find((x) => x.id === id);
+    if (!r) return json(res, 404, { error: "Not Found" });
+    if (String(r.status || "open") !== "open") return json(res, 400, { error: "request closed" });
+    if (r.ownerId === userId) return json(res, 400, { error: "cannot claim own request" });
+
+    const existing = requestClaims.find((c) => c && c.requestId === r.id && c.claimerId === userId && c.status === "claimed");
+    if (existing) return json(res, 200, { ok: true, duplicated: true, item: existing });
+
+    ensureUser(userId);
+    ensureUserStats(userId);
+    ensureUser(r.ownerId);
+
+    const claim = {
+      id: `cl_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      requestId: r.id,
+      ownerId: r.ownerId,
+      claimerId: userId,
+      status: "claimed",
+      createdAt: Date.now(),
+      completedAt: 0,
+      complainedAt: 0
+    };
+    requestClaims.push(claim);
+    markDirty();
+
+    notifications.push({
+      id: `n_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      toUserId: r.ownerId,
+      type: "system",
+      title: "Request claimed / 已有人抢单",
+      content: `${ensureUser(userId).displayName}: ${r.title}`.slice(0, 500),
+      createdAt: Date.now(),
+      readAt: null,
+      data: { kind: "requestClaim", requestId: r.id, fromUserId: userId, claimId: claim.id }
+    });
+
+    return json(res, 201, { ok: true, duplicated: false, item: claim });
+  }
+
+  const requestClaimsListMatch = url.pathname.match(/^\/requests\/([^/]+)\/claims$/);
+  if (req.method === "GET" && requestClaimsListMatch) {
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!userId) return json(res, 401, { error: "Unauthorized" });
+    const id = decodeURIComponent(requestClaimsListMatch[1]);
+    const r = requests.find((x) => x.id === id);
+    if (!r) return json(res, 404, { error: "Not Found" });
+    if (r.ownerId !== userId) return json(res, 403, { error: "Forbidden" });
+    const items = requestClaims
+      .filter((c) => c && c.requestId === r.id)
+      .slice()
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map((c) => ({
+        id: c.id,
+        requestId: c.requestId,
+        claimerId: c.claimerId,
+        claimerDisplayName: ensureUser(c.claimerId).displayName,
+        status: c.status,
+        createdAt: c.createdAt,
+        completedAt: c.completedAt || 0,
+        complainedAt: c.complainedAt || 0
+      }));
+    return json(res, 200, { items });
+  }
+
+  const requestClaimCompleteMatch = url.pathname.match(/^\/requests\/([^/]+)\/claims\/([^/]+)\/complete$/);
+  if (req.method === "POST" && requestClaimCompleteMatch) {
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!userId) return json(res, 401, { error: "Unauthorized" });
+    const requestId = decodeURIComponent(requestClaimCompleteMatch[1]);
+    const claimId = decodeURIComponent(requestClaimCompleteMatch[2]);
+    const r = requests.find((x) => x.id === requestId);
+    if (!r) return json(res, 404, { error: "Not Found" });
+    if (r.ownerId !== userId) return json(res, 403, { error: "Forbidden" });
+    const claim = requestClaims.find((c) => c && c.id === claimId && c.requestId === r.id);
+    if (!claim) return json(res, 404, { error: "Not Found" });
+    if (claim.status !== "claimed") return json(res, 400, { error: "cannot complete" });
+
+    markDirty();
+    claim.status = "completed";
+    claim.completedAt = Date.now();
+
+    const stats = ensureUserStats(claim.claimerId);
+    stats.points += Math.max(0, CLAIM_COMPLETE_POINTS);
+    stats.claimCompleteCount = Number(stats.claimCompleteCount || 0) + 1;
+    userStats.set(claim.claimerId, stats);
+
+    notifications.push({
+      id: `n_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      toUserId: claim.claimerId,
+      type: "system",
+      title: "Claim completed / 抢单完成",
+      content: `${ensureUser(r.ownerId).displayName}: ${r.title}`.slice(0, 500),
+      createdAt: Date.now(),
+      readAt: null,
+      data: { kind: "claimCompleted", requestId: r.id, claimId: claim.id, fromUserId: r.ownerId, pointsAwarded: CLAIM_COMPLETE_POINTS }
+    });
+    return json(res, 200, { ok: true, pointsAwarded: CLAIM_COMPLETE_POINTS });
+  }
+
+  const requestClaimComplainMatch = url.pathname.match(/^\/requests\/([^/]+)\/claims\/([^/]+)\/complain$/);
+  if (req.method === "POST" && requestClaimComplainMatch) {
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!userId) return json(res, 401, { error: "Unauthorized" });
+    const requestId = decodeURIComponent(requestClaimComplainMatch[1]);
+    const claimId = decodeURIComponent(requestClaimComplainMatch[2]);
+    const r = requests.find((x) => x.id === requestId);
+    if (!r) return json(res, 404, { error: "Not Found" });
+    if (r.ownerId !== userId) return json(res, 403, { error: "Forbidden" });
+    const claim = requestClaims.find((c) => c && c.id === claimId && c.requestId === r.id);
+    if (!claim) return json(res, 404, { error: "Not Found" });
+    if (claim.status !== "claimed") return json(res, 400, { error: "cannot complain" });
+    const exists = requestComplaints.some((c) => c && c.requestId === r.id && c.claimId === claim.id);
+    if (exists) return json(res, 200, { ok: true, duplicated: true });
+
+    const body = await readJson(req).catch(() => null);
+    const reason = typeof body?.reason === "string" ? body.reason.trim().slice(0, 80) : "unknown";
+
+    markDirty();
+    claim.status = "complained";
+    claim.complainedAt = Date.now();
+
+    const item = {
+      id: `cp_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      requestId: r.id,
+      claimId: claim.id,
+      fromUserId: userId,
+      toUserId: claim.claimerId,
+      reason,
+      createdAt: Date.now()
+    };
+    requestComplaints.push(item);
+
+    const stats = ensureUserStats(claim.claimerId);
+    stats.points -= Math.max(0, COMPLAINT_PENALTY_POINTS);
+    stats.complaintCount = Number(stats.complaintCount || 0) + 1;
+    stats.claimComplaintCount = Number(stats.claimComplaintCount || 0) + 1;
+    userStats.set(claim.claimerId, stats);
+
+    notifications.push({
+      id: `n_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      toUserId: claim.claimerId,
+      type: "system",
+      title: "Complaint received / 被投诉",
+      content: `${ensureUser(r.ownerId).displayName}: ${r.title} (${reason})`.slice(0, 500),
+      createdAt: Date.now(),
+      readAt: null,
+      data: { kind: "claimComplaint", requestId: r.id, claimId: claim.id, fromUserId: r.ownerId, reason, penaltyPoints: COMPLAINT_PENALTY_POINTS }
+    });
+    return json(res, 200, { ok: true, duplicated: false, penaltyPoints: COMPLAINT_PENALTY_POINTS });
   }
 
   if (req.method === "PUT" && requestMatch) {
@@ -2065,9 +2260,14 @@ function ensureUser(userId, opts) {
 
 function ensureUserStats(userId) {
   const existing = userStats.get(userId);
-  if (existing) return existing;
+  if (existing) {
+    if (typeof existing.claimCompleteCount !== "number") existing.claimCompleteCount = 0;
+    if (typeof existing.complaintCount !== "number") existing.complaintCount = 0;
+    if (typeof existing.claimComplaintCount !== "number") existing.claimComplaintCount = 0;
+    return existing;
+  }
   markDirty();
-  const s = { points: 0, introSuccessCount: 0, introFailCount: 0 };
+  const s = { points: 0, introSuccessCount: 0, introFailCount: 0, claimCompleteCount: 0, complaintCount: 0, claimComplaintCount: 0 };
   userStats.set(userId, s);
   return s;
 }
