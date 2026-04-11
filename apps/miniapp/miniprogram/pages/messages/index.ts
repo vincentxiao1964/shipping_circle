@@ -18,6 +18,7 @@ const I18N_KEYS = [
   "messages.introduceNow",
   "messages.company",
   "messages.tags",
+  "messages.openAdmin",
   "common.failed",
   "common.refresh",
   "common.read",
@@ -34,6 +35,8 @@ type NotificationViewItem = NotificationItem & {
   canQuickIntroduce: boolean;
   companyName: string;
   tagsText: string;
+  isNormalizeReport: boolean;
+  normalizeKeysParam: string;
 };
 
 Page({
@@ -120,7 +123,11 @@ Page({
           introId: n.data?.introId || "",
           canQuickIntroduce: n.type === "requestPing" && Boolean(n.data?.requestId) && Boolean(me) && String(n.data?.fromUserId || "") !== me,
           companyName: String(n.data?.companyName || ""),
-          tagsText: Array.isArray(n.data?.tags) ? n.data!.tags!.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 10).join(", ") : ""
+          tagsText: Array.isArray(n.data?.tags) ? n.data!.tags!.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 10).join(", ") : "",
+          isNormalizeReport: n.type === "system" && String(n.data?.kind || "") === "normalizeChannels",
+          normalizeKeysParam: Array.isArray(n.data?.conflictKeys)
+            ? encodeURIComponent(n.data!.conflictKeys!.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 50).join(","))
+            : ""
         }));
         this.setData({ items: viewItems });
       })
@@ -159,5 +166,11 @@ Page({
       return;
     }
     wx.navigateTo({ url: `/pages/request-detail/index?id=${encodeURIComponent(requestId)}&action=introduce` });
+  },
+
+  onTapOpenAdmin(e: WechatMiniprogram.BaseEvent) {
+    const keys = (e.currentTarget as any)?.dataset?.keys as string | undefined;
+    const qs = keys ? `?keys=${keys}` : "";
+    wx.navigateTo({ url: `/pages/admin/index${qs}` });
   }
 });

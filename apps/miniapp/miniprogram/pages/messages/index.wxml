@@ -52,6 +52,9 @@
         {{i18n["messages.introduceNow"]}}
       </button>
     </view>
+    <view class="row" style="margin-top: 12rpx;" wx:if="{{item.isNormalizeReport}}">
+      <button size="mini" data-keys="{{item.normalizeKeysParam}}" catchtap="onTapOpenAdmin">{{i18n["messages.openAdmin"]}}</button>
+    </view>
   </view>
 
   <view class="card" style="margin-top: 16rpx;" wx:if="{{!loading && items.length === 0}}">

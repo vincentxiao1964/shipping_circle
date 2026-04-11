@@ -10,6 +10,10 @@ export type NotificationData = {
   companyId?: string;
   companyName?: string;
   tags?: string[];
+  kind?: string;
+  fingerprint?: string;
+  conflictKeys?: string[];
+  report?: any;
 };
 
 export type NotificationItem = {

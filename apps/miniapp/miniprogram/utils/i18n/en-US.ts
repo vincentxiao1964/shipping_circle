@@ -145,6 +145,7 @@ export const enUS = {
   "messages.requestPing": "Request ping",
   "messages.openRequest": "Open request",
   "messages.introduceNow": "Introduce now",
+  "messages.openAdmin": "Fix conflicts",
   "messages.company": "Company",
   "messages.tags": "Tags",
   "me.title": "Me",

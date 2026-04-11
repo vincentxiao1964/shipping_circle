@@ -60,10 +60,20 @@ Page({
     conflictKeys: [] as string[],
     showAllConflicts: true
   },
-  onLoad() {
+  onLoad(query: Record<string, string | undefined>) {
     syncPageI18n(this, I18N_KEYS);
     this.setData({ adminKeyInput: getStoredAdminKey() });
     wx.setNavigationBarTitle({ title: t("admin.title") });
+    const keysParam = query.keys ? String(query.keys) : "";
+    const decoded = keysParam ? decodeURIComponent(keysParam) : "";
+    const keys = decoded
+      ? decoded
+          .split(",")
+          .map((x) => String(x || "").trim())
+          .filter(Boolean)
+          .slice(0, 50)
+      : [];
+    if (keys.length > 0) this.setData({ conflictKeys: keys, showAllConflicts: false });
     this.refreshConflicts();
   },
   onShow() {

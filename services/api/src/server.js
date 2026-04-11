@@ -2261,6 +2261,9 @@ function notifyAdminNormalizeReport(report, source) {
     `contacts: ${out.contactsUpdated || 0}`,
     `conflicts: ${conflictCount}`
   ].join("\n");
+  const conflictKeys = Array.isArray(out.contactConflicts)
+    ? out.contactConflicts.map((x) => String(x?.key || "").trim()).filter(Boolean).slice(0, 50)
+    : [];
 
   notifications.push({
     id: `n_${Date.now()}_${Math.random().toString(16).slice(2)}`,
@@ -2270,7 +2273,7 @@ function notifyAdminNormalizeReport(report, source) {
     content: content.slice(0, 500),
     createdAt: now,
     readAt: null,
-    data: { kind: "normalizeChannels", fingerprint, report: { ...out, contactConflicts: undefined } }
+    data: { kind: "normalizeChannels", fingerprint, conflictKeys, report: { ...out, contactConflicts: undefined } }
   });
   markDirty();
   return true;

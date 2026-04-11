@@ -145,6 +145,7 @@ export const zhCN = {
   "messages.requestPing": "求助提醒",
   "messages.openRequest": "打开需求",
   "messages.introduceNow": "我要引荐",
+  "messages.openAdmin": "处理冲突",
   "messages.company": "公司",
   "messages.tags": "业务",
   "me.title": "我的",
