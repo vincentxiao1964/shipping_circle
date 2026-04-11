@@ -2,6 +2,7 @@
   "pages": [
     "pages/home/index",
     "pages/tools/index",
+    "pages/tag-subscriptions/index",
     "pages/messages/index",
     "pages/profile/index",
     "pages/following/index",

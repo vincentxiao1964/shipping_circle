@@ -30,6 +30,7 @@ export function initStore() {
     contacts: [],
     companies: [],
     companyFollows: new Map(),
+    userTagSubs: new Map(),
     notifications: [],
     follows: new Map()
   };
@@ -126,6 +127,7 @@ function applySnapshot(target, s) {
   const users = Array.isArray(s?.users) ? s.users : [];
   const userStats = Array.isArray(s?.userStats) ? s.userStats : [];
   const companyFollows = Array.isArray(s?.companyFollows) ? s.companyFollows : [];
+  const userTagSubs = Array.isArray(s?.userTagSubs) ? s.userTagSubs : [];
   const follows = Array.isArray(s?.follows) ? s.follows : [];
 
   target.tokenToUser.clear();
@@ -154,6 +156,8 @@ function applySnapshot(target, s) {
 
   target.companyFollows.clear();
   for (const [uid, ids] of companyFollows) target.companyFollows.set(uid, new Set(Array.isArray(ids) ? ids : []));
+  target.userTagSubs.clear();
+  for (const [uid, ids] of userTagSubs) target.userTagSubs.set(uid, new Set(Array.isArray(ids) ? ids : []));
   target.follows.clear();
   for (const [uid, ids] of follows) target.follows.set(uid, new Set(Array.isArray(ids) ? ids : []));
 }
@@ -174,6 +178,7 @@ function snapshotState(state) {
     contacts: state.contacts,
     companies: state.companies,
     companyFollows: Array.from(state.companyFollows.entries()).map(([uid, set]) => [uid, Array.from(set.values())]),
+    userTagSubs: Array.from(state.userTagSubs.entries()).map(([uid, set]) => [uid, Array.from(set.values())]),
     follows: Array.from(state.follows.entries()).map(([uid, set]) => [uid, Array.from(set.values())]),
     notifications: state.notifications
   };
@@ -219,6 +224,7 @@ function defaultState() {
       }
     ],
     companyFollows: [],
+    userTagSubs: [],
     follows: [],
     notifications: []
   };

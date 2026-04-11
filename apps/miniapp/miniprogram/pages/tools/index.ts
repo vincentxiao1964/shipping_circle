@@ -5,6 +5,7 @@ const I18N_KEYS = [
   "tools.subtitle",
   "tools.entry.search",
   "tools.entry.companyFollowing",
+  "tools.entry.subscriptions",
   "tools.entry.intros",
   "tools.entry.score",
   "tools.entry.admin"
@@ -29,6 +30,7 @@ Page({
     const map: Record<string, string> = {
       search: "/pages/search/index",
       companyFollowing: "/pages/company-following/index",
+      subscriptions: "/pages/tag-subscriptions/index",
       intros: "/pages/my-introductions/index",
       score: "/pages/profile/index",
       admin: "/pages/admin/index"

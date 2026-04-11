@@ -18,6 +18,7 @@ const requestComplaints = store.requestComplaints;
 const contacts = store.contacts;
 const companies = store.companies;
 const companyFollows = store.companyFollows;
+const userTagSubs = store.userTagSubs;
 const notifications = store.notifications;
 const follows = store.follows;
 const MAX_PORT_TRIES = 20;
@@ -119,6 +120,26 @@ function recommendIntroducersForRequest(input) {
         item.score += 1;
         byUser.set(uid, item);
       }
+    }
+  }
+
+  if (tagSet.size > 0) {
+    for (const [uid, set] of userTagSubs.entries()) {
+      if (!set || !set.has) continue;
+      if (uid === r.ownerId) continue;
+      let hit = false;
+      for (const t of set.values()) {
+        const k = String(t || "").trim();
+        if (!k) continue;
+        if (tagSet.has(k)) {
+          hit = true;
+          break;
+        }
+      }
+      if (!hit) continue;
+      const item = byUser.get(uid) || { userId: uid, successCount: 0, score: 0 };
+      item.score += 1;
+      byUser.set(uid, item);
     }
   }
 
@@ -311,6 +332,8 @@ const server = http.createServer(async (req, res) => {
         "POST /users/:id/follow",
         "GET /users/me",
         "PUT /users/me",
+        "GET /users/me/tag-subscriptions",
+        "PUT /users/me/tag-subscriptions",
         "GET /users/me/following",
         "GET /users/:id",
         "GET /users/:id/stats",
@@ -399,6 +422,28 @@ const server = http.createServer(async (req, res) => {
         contactVisibility: u.contactVisibility || "loggedIn"
       }
     });
+  }
+
+  if (req.method === "GET" && url.pathname === "/users/me/tag-subscriptions") {
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!userId) return json(res, 401, { error: "Unauthorized" });
+    const set = userTagSubs.get(userId) || new Set();
+    const items = Array.from(set.values())
+      .map((x) => String(x || "").trim())
+      .filter(Boolean)
+      .slice(0, 50);
+    return json(res, 200, { items });
+  }
+
+  if (req.method === "PUT" && url.pathname === "/users/me/tag-subscriptions") {
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!userId) return json(res, 401, { error: "Unauthorized" });
+    const body = await readJson(req).catch(() => null);
+    const tags = Array.isArray(body?.tags) ? body.tags.map((x) => String(x || "").trim()).filter(Boolean) : [];
+    const uniq = Array.from(new Set(tags)).slice(0, 50);
+    markDirty();
+    userTagSubs.set(userId, new Set(uniq));
+    return json(res, 200, { items: uniq });
   }
 
   if (req.method === "PUT" && url.pathname === "/users/me") {
@@ -1263,6 +1308,7 @@ const server = http.createServer(async (req, res) => {
     const viewerId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     const mineOnly = String(url.searchParams.get("mine") || "") === "1";
     const includeClosed = String(url.searchParams.get("includeClosed") || "") === "1";
+    const subscribedOnly = String(url.searchParams.get("subscribed") || "") === "1";
     const tag = String(url.searchParams.get("tag") || "").trim();
     const company = String(url.searchParams.get("company") || "").trim().toLowerCase();
     const hasPriceHint = String(url.searchParams.get("hasPriceHint") || "") === "1";
@@ -1270,10 +1316,17 @@ const server = http.createServer(async (req, res) => {
     const limitRaw = Number(url.searchParams.get("limit") || 20);
     const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(1, limitRaw), 50) : 20;
 
-    if (mineOnly && !viewerId) return json(res, 401, { error: "Unauthorized" });
+    if ((mineOnly || subscribedOnly) && !viewerId) return json(res, 401, { error: "Unauthorized" });
     const base = mineOnly ? requests.filter((r) => r.ownerId === viewerId) : requests;
     const visible = includeClosed ? base : base.filter((r) => r.status !== "closed");
-    const filteredByTag = tag ? visible.filter((r) => Array.isArray(r.tags) && r.tags.includes(tag)) : visible;
+    const subs = subscribedOnly ? userTagSubs.get(viewerId) || new Set() : null;
+    const bySubs =
+      subscribedOnly && subs && subs.size
+        ? visible.filter((r) => Array.isArray(r.tags) && r.tags.some((t) => subs.has(String(t || "").trim())))
+        : subscribedOnly
+          ? []
+          : visible;
+    const filteredByTag = tag ? bySubs.filter((r) => Array.isArray(r.tags) && r.tags.includes(tag)) : bySubs;
     const filteredByCompany = company
       ? filteredByTag.filter((r) => String(r.companyName || "").toLowerCase().includes(company))
       : filteredByTag;
@@ -1534,11 +1587,25 @@ const server = http.createServer(async (req, res) => {
     autoExpireClaims(now);
 
     const candidates = recommendIntroducersForRequest({ request: r, viewerId: userId, limit, now, includeViewer: false });
+    const tagSet = new Set((Array.isArray(r.tags) ? r.tags : []).map((x) => String(x || "").trim()).filter(Boolean));
+    const subscribedCandidates = tagSet.size
+      ? candidates.filter((c) => {
+          const set = userTagSubs.get(String(c.userId || "").trim());
+          if (!set || !set.size) return false;
+          for (const t of set.values()) {
+            const k = String(t || "").trim();
+            if (!k) continue;
+            if (tagSet.has(k)) return true;
+          }
+          return false;
+        })
+      : [];
+    const finalCandidates = subscribedCandidates.length ? subscribedCandidates.slice(0, limit) : candidates;
     const owner = ensureUser(userId);
     if (!r.priceHint) r.priceHint = computePriceHintForRequest(r, now);
     let sent = 0;
     let duplicated = 0;
-    for (const cand of candidates) {
+    for (const cand of finalCandidates) {
       const toUserId = String(cand.userId || "").trim();
       if (!toUserId || toUserId === userId) continue;
       ensureUser(toUserId);

@@ -41,6 +41,9 @@
       <button size="mini" style="margin-left: 12rpx;" type="{{hasPriceHint ? 'primary' : 'default'}}" bindtap="onTapFilterPriceHint">
         {{i18n["home.filter.priceHint"]}}
       </button>
+      <button size="mini" style="margin-left: 12rpx;" type="{{subscribedOnly ? 'primary' : 'default'}}" bindtap="onTapFilterSubscribed">
+        {{i18n["home.filter.subscribed"]}}
+      </button>
     </view>
   </view>
 

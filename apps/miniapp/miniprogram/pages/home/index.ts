@@ -10,6 +10,7 @@ const I18N_KEYS = [
   "home.filter.all",
   "home.filter.tag",
   "home.filter.priceHint",
+  "home.filter.subscribed",
   "home.filter.placeholder",
   "home.filter.custom",
   "request.create",
@@ -34,6 +35,7 @@ Page({
     tab: "square" as "square" | "mine",
     tag: "",
     hasPriceHint: false,
+    subscribedOnly: false,
     cursor: null as string | null,
     hasMore: true,
     loading: false
@@ -70,7 +72,7 @@ Page({
   },
   onTapTabSquare() {
     if (this.data.tab === "square") return;
-    this.setData({ tab: "square", tag: "" });
+    this.setData({ tab: "square", tag: "", subscribedOnly: false });
     this.loadFirstPage();
   },
   onTapTabMine() {
@@ -79,7 +81,7 @@ Page({
       wx.navigateTo({ url: "/pages/login/index" });
       return;
     }
-    this.setData({ tab: "mine", tag: "" });
+    this.setData({ tab: "mine", tag: "", hasPriceHint: false, subscribedOnly: false });
     this.loadFirstPage();
   },
   onTapFilterAll() {
@@ -90,6 +92,15 @@ Page({
   onTapFilterPriceHint() {
     if (this.data.tab !== "square") return;
     this.setData({ hasPriceHint: !this.data.hasPriceHint });
+    this.loadFirstPage();
+  },
+  onTapFilterSubscribed() {
+    if (this.data.tab !== "square") return;
+    if (!getToken()) {
+      wx.navigateTo({ url: "/pages/login/index" });
+      return;
+    }
+    this.setData({ subscribedOnly: !this.data.subscribedOnly });
     this.loadFirstPage();
   },
   onTapFilterTag() {
@@ -155,7 +166,8 @@ Page({
       limit: PAGE_LIMIT,
       mine: this.data.tab === "mine",
       tag: this.data.tab === "square" ? this.data.tag : "",
-      hasPriceHint: this.data.tab === "square" ? this.data.hasPriceHint : false
+      hasPriceHint: this.data.tab === "square" ? this.data.hasPriceHint : false,
+      subscribedOnly: this.data.tab === "square" ? this.data.subscribedOnly : false
     })
       .then((page) => {
         this.setData({
@@ -183,7 +195,8 @@ Page({
       cursor: this.data.cursor ?? undefined,
       mine: this.data.tab === "mine",
       tag: this.data.tab === "square" ? this.data.tag : "",
-      hasPriceHint: this.data.tab === "square" ? this.data.hasPriceHint : false
+      hasPriceHint: this.data.tab === "square" ? this.data.hasPriceHint : false,
+      subscribedOnly: this.data.tab === "square" ? this.data.subscribedOnly : false
     })
       .then((page) => {
         this.setData({

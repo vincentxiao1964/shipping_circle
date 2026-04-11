@@ -227,6 +227,7 @@ export async function listRequestsPage(input: {
   tag?: string;
   company?: string;
   hasPriceHint?: boolean;
+  subscribedOnly?: boolean;
 }): Promise<PageResult<RequestListItem>> {
   const remote = await tryListRemotePage(input);
   if (remote) return remote;
@@ -411,11 +412,13 @@ async function tryListRemotePage(input: {
   tag?: string;
   company?: string;
   hasPriceHint?: boolean;
+  subscribedOnly?: boolean;
 }): Promise<PageResult<RequestListItem> | null> {
   try {
     const qs = buildQuery({
       mine: input.mine ? "1" : "",
       includeClosed: input.mine ? "1" : "",
+      subscribed: input.subscribedOnly ? "1" : "",
       tag: input.tag || "",
       company: input.company || "",
       hasPriceHint: input.hasPriceHint ? "1" : "",
@@ -616,6 +619,7 @@ function listLocalPage(input: {
   tag?: string;
   company?: string;
   hasPriceHint?: boolean;
+  subscribedOnly?: boolean;
 }): PageResult<RequestListItem> {
   const me = getUserId() ?? "";
   const limit = Math.min(Math.max(1, input.limit), 50);

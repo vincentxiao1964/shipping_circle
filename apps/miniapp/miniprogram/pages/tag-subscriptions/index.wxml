@@ -1,0 +1,43 @@
+<view class="container">
+  <view class="card">
+    <view style="font-weight: 600;">{{i18n["subs.title"]}}</view>
+    <view class="muted" style="margin-top: 8rpx;">{{i18n["subs.subtitle"]}}</view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view class="row">
+      <view style="font-weight: 600;">{{i18n["subs.my"]}}</view>
+      <button size="mini" bindtap="onTapAddCustom">{{i18n["subs.addCustom"]}}</button>
+    </view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{myTags.length === 0}}">
+      {{i18n["subs.empty"]}}
+    </view>
+    <view style="margin-top: 8rpx;" wx:if="{{myTags.length > 0}}">
+      <block wx:for="{{myTags}}" wx:for-item="t" wx:key="*this">
+        <button size="mini" style="margin-right: 12rpx; margin-top: 8rpx;" data-tag="{{t}}" catchtap="onTapToggle">
+          {{t}} ✓
+        </button>
+      </block>
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view class="row">
+      <view style="font-weight: 600;">{{i18n["subs.popular"]}}</view>
+      <button size="mini" bindtap="onTapRefresh">{{i18n["common.refresh"]}}</button>
+    </view>
+    <view style="margin-top: 8rpx;">
+      <block wx:for="{{popularTags}}" wx:for-item="x" wx:key="tag">
+        <button
+          size="mini"
+          style="margin-right: 12rpx; margin-top: 8rpx;"
+          data-tag="{{x.tag}}"
+          catchtap="onTapToggle"
+        >
+          {{x.tag}} ({{x.count}})
+        </button>
+      </block>
+    </view>
+  </view>
+</view>
+

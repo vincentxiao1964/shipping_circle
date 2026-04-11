@@ -124,6 +124,25 @@ export async function updateMeProfile(input: {
   }
 }
 
+export async function getMyTagSubscriptions(): Promise<string[]> {
+  try {
+    const res = await requestJson<{ items: string[] }>("GET", "/users/me/tag-subscriptions");
+    return Array.isArray(res?.items) ? res.items : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function updateMyTagSubscriptions(tags: string[]): Promise<string[]> {
+  const compact = Array.from(new Set((Array.isArray(tags) ? tags : []).map((x) => String(x || "").trim()).filter(Boolean))).slice(0, 50);
+  try {
+    const res = await requestJson<{ items: string[] }>("PUT", "/users/me/tag-subscriptions", { tags: compact });
+    return Array.isArray(res?.items) ? res.items : compact;
+  } catch {
+    return compact;
+  }
+}
+
 export async function getUsersByIds(ids: string[]): Promise<UserProfile[]> {
   const compact = ids.map((x) => x.trim()).filter(Boolean).slice(0, 50);
   if (compact.length === 0) return [];
