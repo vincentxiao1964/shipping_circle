@@ -1,5 +1,5 @@
 import { addCompanyAlias, getCompany } from "../../services/companies";
-import { matchContacts, type ContactMatchGroup } from "../../services/contacts";
+import { confirmContact, invalidateContact, matchContacts, updateContact, type ContactMatchGroup } from "../../services/contacts";
 import { listRequestsPage, type RequestListItem } from "../../services/requests";
 import { getToken } from "../../services/api";
 import { toggleCompanyFollow } from "../../services/companies";
@@ -24,6 +24,20 @@ const I18N_KEYS = [
   "contact.copied",
   "contact.stale",
   "contact.candidate",
+  "contact.confirm",
+  "contact.update",
+  "contact.markInvalid",
+  "contact.confirmed",
+  "contact.updated",
+  "contact.invalidMarked",
+  "contact.updateTitle",
+  "contact.updatePlaceholder",
+  "contact.invalidReasonTitle",
+  "contact.invalidReasonUnreachable",
+  "contact.invalidReasonMismatch",
+  "contact.invalidReasonLeft",
+  "contact.invalidReasonRefused",
+  "contact.invalidReasonOther",
   "common.refresh",
   "common.failed",
   "common.notFound"
@@ -76,6 +90,81 @@ Page({
       data: channel,
       success: () => {
         wx.showToast({ title: t("contact.copied"), icon: "success" });
+      }
+    });
+  },
+  onTapContactConfirm(e: WechatMiniprogram.BaseEvent) {
+    const id = (e.currentTarget as any)?.dataset?.id as string | undefined;
+    if (!id) return;
+    if (!getToken()) {
+      wx.navigateTo({ url: "/pages/login/index" });
+      return;
+    }
+    confirmContact(id)
+      .then((ok) => {
+        if (!ok) throw new Error("failed");
+        wx.showToast({ title: t("contact.confirmed"), icon: "success" });
+        if (this.data.item) this.loadContacts(this.data.item);
+      })
+      .catch(() => {
+        wx.showToast({ title: t("common.failed"), icon: "none" });
+      });
+  },
+  onTapContactUpdate(e: WechatMiniprogram.BaseEvent) {
+    const id = (e.currentTarget as any)?.dataset?.id as string | undefined;
+    const channel = (e.currentTarget as any)?.dataset?.channel as string | undefined;
+    if (!id) return;
+    if (!getToken()) {
+      wx.navigateTo({ url: "/pages/login/index" });
+      return;
+    }
+    wx.showModal({
+      title: t("contact.updateTitle"),
+      editable: true,
+      placeholderText: channel || t("contact.updatePlaceholder"),
+      success: (r) => {
+        if (!r.confirm) return;
+        const v = String((r as any).content || "").trim();
+        if (!v) return;
+        updateContact({ id, contactChannel: v })
+          .then((res) => {
+            if (res !== "ok") throw new Error("failed");
+            wx.showToast({ title: t("contact.updated"), icon: "success" });
+            if (this.data.item) this.loadContacts(this.data.item);
+          })
+          .catch(() => {
+            wx.showToast({ title: t("common.failed"), icon: "none" });
+          });
+      }
+    });
+  },
+  onTapContactInvalid(e: WechatMiniprogram.BaseEvent) {
+    const id = (e.currentTarget as any)?.dataset?.id as string | undefined;
+    if (!id) return;
+    if (!getToken()) {
+      wx.navigateTo({ url: "/pages/login/index" });
+      return;
+    }
+    const reasons = [
+      { label: t("contact.invalidReasonUnreachable"), code: "unreachable" },
+      { label: t("contact.invalidReasonMismatch"), code: "mismatch" },
+      { label: t("contact.invalidReasonLeft"), code: "left" },
+      { label: t("contact.invalidReasonRefused"), code: "refused" },
+      { label: t("contact.invalidReasonOther"), code: "other" }
+    ];
+    wx.showActionSheet({
+      itemList: reasons.map((x) => x.label),
+      success: (r) => {
+        const reason = reasons[r.tapIndex]?.code || "";
+        invalidateContact(id, reason)
+          .then((res) => {
+            if (res !== "ok") throw new Error("failed");
+            wx.showToast({ title: t("contact.invalidMarked"), icon: "success" });
+            if (this.data.item) this.loadContacts(this.data.item);
+          })
+          .catch(() => {
+            wx.showToast({ title: t("common.failed"), icon: "none" });
+          });
       }
     });
   },

@@ -66,6 +66,13 @@
         </view>
         <view class="muted" style="margin-top: 8rpx;" wx:if="{{c.status === 'stale'}}">{{i18n["contact.stale"]}}</view>
         <view class="muted" style="margin-top: 8rpx;" wx:if="{{c.status === 'candidate'}}">{{i18n["contact.candidate"]}}</view>
+        <view class="row" style="margin-top: 8rpx;" wx:if="{{c.status === 'stale' || c.status === 'candidate'}}">
+          <button size="mini" type="primary" data-id="{{c.id}}" catchtap="onTapContactConfirm">{{i18n["contact.confirm"]}}</button>
+          <button size="mini" style="margin-left: 12rpx;" data-id="{{c.id}}" data-channel="{{c.contactChannel}}" catchtap="onTapContactUpdate">
+            {{i18n["contact.update"]}}
+          </button>
+          <button size="mini" style="margin-left: 12rpx;" data-id="{{c.id}}" catchtap="onTapContactInvalid">{{i18n["contact.markInvalid"]}}</button>
+        </view>
         <view class="muted" style="margin-top: 8rpx;" wx:if="{{c.contactTitle}}">{{c.contactTitle}}</view>
         <view class="muted" style="margin-top: 8rpx;" wx:if="{{c.clue}}">{{c.clue}}</view>
       </view>

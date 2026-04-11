@@ -45,3 +45,52 @@ export async function matchContacts(input: {
     return [];
   }
 }
+
+export async function confirmContact(id: string): Promise<boolean> {
+  const cid = String(id || "").trim();
+  if (!cid) return false;
+  try {
+    await requestJson("POST", `/contacts/${encodeURIComponent(cid)}/feedback`, { action: "confirm" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function invalidateContact(id: string, reason: string): Promise<"ok" | "conflict" | "failed"> {
+  const cid = String(id || "").trim();
+  if (!cid) return "failed";
+  try {
+    await requestJson("POST", `/contacts/${encodeURIComponent(cid)}/feedback`, { action: "invalid", reason: String(reason || "") });
+    return "ok";
+  } catch (e) {
+    const statusCode = (e as any)?.statusCode as number | undefined;
+    if (statusCode === 409) return "conflict";
+    return "failed";
+  }
+}
+
+export async function updateContact(input: {
+  id: string;
+  contactChannel?: string;
+  contactName?: string;
+  contactTitle?: string;
+  clue?: string;
+}): Promise<"ok" | "conflict" | "failed"> {
+  const cid = String(input.id || "").trim();
+  if (!cid) return "failed";
+  try {
+    await requestJson("POST", `/contacts/${encodeURIComponent(cid)}/feedback`, {
+      action: "update",
+      contactChannel: String(input.contactChannel || ""),
+      contactName: String(input.contactName || ""),
+      contactTitle: String(input.contactTitle || ""),
+      clue: String(input.clue || "")
+    });
+    return "ok";
+  } catch (e) {
+    const statusCode = (e as any)?.statusCode as number | undefined;
+    if (statusCode === 409) return "conflict";
+    return "failed";
+  }
+}

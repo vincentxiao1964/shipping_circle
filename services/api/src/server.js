@@ -57,6 +57,7 @@ const server = http.createServer(async (req, res) => {
         "POST /companies/:id/follow",
         "GET /companies/me/following",
         "GET /contacts/match",
+        "POST /contacts/:id/feedback",
         "PUT /admin/companies/:id/aliases",
         "POST /admin/companies/merge",
         "GET /requests",
@@ -571,6 +572,68 @@ const server = http.createServer(async (req, res) => {
       .sort((a, b) => a.business.localeCompare(b.business));
 
     return json(res, 200, { items });
+  }
+
+  const contactFeedbackMatch = url.pathname.match(/^\/contacts\/([^/]+)\/feedback$/);
+  if (req.method === "POST" && contactFeedbackMatch) {
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!userId) return json(res, 401, { error: "Unauthorized" });
+    const id = decodeURIComponent(contactFeedbackMatch[1]);
+    const c = contacts.find((x) => x && x.id === id);
+    if (!c) return json(res, 404, { error: "Not Found" });
+    const body = await readJson(req).catch(() => null);
+    const action = typeof body?.action === "string" ? body.action.trim() : "";
+    const now = Date.now();
+
+    const computeKey = (ct, contactChannel) => {
+      const channelKey = normalizeChannel(contactChannel);
+      const businessKey = normalizeBusiness(ct.business || "");
+      if (ct.companyId) return `${ct.companyId}|${businessKey}|${channelKey}`;
+      return `${normalizeCompany(ct.companyName || "")}|${businessKey}|${channelKey}`;
+    };
+
+    if (action === "confirm") {
+      markDirty();
+      c.status = "verified";
+      c.verifiedAt = now;
+      c.updatedAt = now;
+      return json(res, 200, { ok: true });
+    }
+
+    if (action === "invalid") {
+      const reason = typeof body?.reason === "string" ? body.reason.trim() : "";
+      markDirty();
+      c.status = "invalid";
+      c.failCount = Number(c.failCount || 0) + 1;
+      c.lastFailureAt = now;
+      c.lastFailureReason = reason.slice(0, 80);
+      c.updatedAt = now;
+      return json(res, 200, { ok: true });
+    }
+
+    if (action === "update") {
+      const contactChannel = typeof body?.contactChannel === "string" ? body.contactChannel.trim() : "";
+      const contactName = typeof body?.contactName === "string" ? body.contactName.trim() : "";
+      const contactTitle = typeof body?.contactTitle === "string" ? body.contactTitle.trim() : "";
+      const clue = typeof body?.clue === "string" ? body.clue.trim() : "";
+      if (contactChannel) {
+        const nextKey = computeKey(c, contactChannel);
+        const conflict = contacts.find((x) => x && x.id !== c.id && String(x.key || "") === nextKey);
+        if (conflict) return json(res, 409, { error: "conflict" });
+        markDirty();
+        c.contactChannel = contactChannel.slice(0, 200);
+        c.key = nextKey;
+      } else {
+        markDirty();
+      }
+      if (contactName) c.contactName = contactName.slice(0, 80);
+      if (contactTitle) c.contactTitle = contactTitle.slice(0, 120);
+      if (clue) c.clue = clue.slice(0, 1000);
+      c.updatedAt = now;
+      return json(res, 200, { ok: true });
+    }
+
+    return json(res, 400, { error: "action must be confirm|invalid|update" });
   }
 
   if (req.method === "GET" && url.pathname === "/requests") {
