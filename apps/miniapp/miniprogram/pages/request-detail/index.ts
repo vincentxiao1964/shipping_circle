@@ -18,6 +18,8 @@ const I18N_KEYS = [
   "contact.empty",
   "contact.copy",
   "contact.copied",
+  "contact.stale",
+  "contact.candidate",
   "request.resolveSuccess",
   "request.resolveFail",
   "intro.failReasonTitle",

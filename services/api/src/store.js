@@ -178,6 +178,7 @@ function defaultState() {
       {
         id: "c_seed_1",
         name: "示例公司 / Demo Co.",
+        aliases: ["Demo Co", "示例公司", "示例公司/Demo Co"],
         region: "Shanghai",
         tags: ["订舱", "东南亚"],
         roles: [

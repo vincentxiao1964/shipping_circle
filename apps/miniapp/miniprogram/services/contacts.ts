@@ -14,6 +14,7 @@ export type ContactMatch = {
   successCount: number;
   failCount?: number;
   lastFailureAt?: number;
+  lastFailureReason?: string;
 };
 
 export type ContactMatchGroup = {

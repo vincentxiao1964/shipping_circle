@@ -21,6 +21,8 @@ const follows = store.follows;
 const MAX_PORT_TRIES = 20;
 const TOKEN_TTL_MS = Number(process.env.TOKEN_TTL_MS || 30 * 24 * 60 * 60 * 1000);
 const REFRESH_GRACE_MS = Number(process.env.REFRESH_GRACE_MS || 24 * 60 * 60 * 1000);
+const CONTACT_STALE_MS = Number(process.env.CONTACT_STALE_MS || 90 * 24 * 60 * 60 * 1000);
+const ADMIN_KEY = String(process.env.ADMIN_KEY || "").trim();
 
 const server = http.createServer(async (req, res) => {
   setCors(res);
@@ -50,9 +52,12 @@ const server = http.createServer(async (req, res) => {
         "GET /companies",
         "POST /companies",
         "GET /companies/:id",
+        "GET /companies/resolve?name=...",
         "POST /companies/:id/follow",
         "GET /companies/me/following",
         "GET /contacts/match",
+        "PUT /admin/companies/:id/aliases",
+        "POST /admin/companies/merge",
         "GET /requests",
         "POST /requests",
         "GET /requests/:id",
@@ -237,6 +242,7 @@ const server = http.createServer(async (req, res) => {
       ? base.filter((c) => {
           if (String(c.name || "").toLowerCase().includes(q)) return true;
           if (String(c.region || "").toLowerCase().includes(q)) return true;
+          if (Array.isArray(c.aliases) && c.aliases.some((a) => String(a || "").toLowerCase().includes(q))) return true;
           if (Array.isArray(c.tags) && c.tags.some((t) => String(t || "").toLowerCase().includes(q))) return true;
           if (Array.isArray(c.roles) && c.roles.some((r) => String(r.business || "").toLowerCase().includes(q))) return true;
           return false;
@@ -311,6 +317,7 @@ const server = http.createServer(async (req, res) => {
     const item = {
       id: `c_${Date.now()}_${Math.random().toString(16).slice(2)}`,
       name: name.slice(0, 80),
+      aliases: [],
       region: region.slice(0, 80),
       tags,
       roles,
@@ -322,7 +329,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   const companyMatch = url.pathname.match(/^\/companies\/([^/]+)$/);
-  if (req.method === "GET" && companyMatch) {
+  if (req.method === "GET" && companyMatch && companyMatch[1] !== "resolve") {
     const viewerId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     const id = decodeURIComponent(companyMatch[1]);
     const c = companies.find((x) => x.id === id);
@@ -341,6 +348,80 @@ const server = http.createServer(async (req, res) => {
         createdAt: c.createdAt
       }
     });
+  }
+
+  if (req.method === "GET" && url.pathname === "/companies/resolve") {
+    const name = String(url.searchParams.get("name") || "").trim();
+    if (!name) return json(res, 400, { error: "name required" });
+    const key = normalizeCompany(name);
+    const c =
+      companies.find((x) => normalizeCompany(x?.name || "") === key) ||
+      companies.find((x) => Array.isArray(x?.aliases) && x.aliases.some((a) => normalizeCompany(a) === key));
+    if (!c) return json(res, 404, { error: "Not Found" });
+    return json(res, 200, { item: { id: c.id, name: c.name } });
+  }
+
+  const adminAliasesMatch = url.pathname.match(/^\/admin\/companies\/([^/]+)\/aliases$/);
+  if (req.method === "PUT" && adminAliasesMatch) {
+    if (!isAdmin(req)) return json(res, 403, { error: "Forbidden" });
+    const id = decodeURIComponent(adminAliasesMatch[1]);
+    const c = companies.find((x) => x.id === id);
+    if (!c) return json(res, 404, { error: "Not Found" });
+    const body = await readJson(req).catch(() => null);
+    const add = Array.isArray(body?.add) ? body.add.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 50) : [];
+    const remove = Array.isArray(body?.remove) ? body.remove.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 50) : [];
+    const set = new Set(Array.isArray(c.aliases) ? c.aliases.map((x) => String(x || "").trim()).filter(Boolean) : []);
+    for (const a of add) set.add(a);
+    for (const r of remove) set.delete(r);
+    c.aliases = Array.from(set.values()).slice(0, 50);
+    markDirty();
+    return json(res, 200, { item: { id: c.id, aliases: c.aliases } });
+  }
+
+  if (req.method === "POST" && url.pathname === "/admin/companies/merge") {
+    if (!isAdmin(req)) return json(res, 403, { error: "Forbidden" });
+    const body = await readJson(req).catch(() => null);
+    const sourceId = typeof body?.sourceId === "string" ? body.sourceId.trim() : "";
+    const targetId = typeof body?.targetId === "string" ? body.targetId.trim() : "";
+    if (!sourceId || !targetId) return json(res, 400, { error: "sourceId and targetId required" });
+    if (sourceId === targetId) return json(res, 400, { error: "cannot merge same id" });
+    const source = companies.find((x) => x.id === sourceId);
+    const target = companies.find((x) => x.id === targetId);
+    if (!source || !target) return json(res, 404, { error: "Not Found" });
+
+    const aliasSet = new Set(Array.isArray(target.aliases) ? target.aliases : []);
+    aliasSet.add(source.name);
+    if (Array.isArray(source.aliases)) for (const a of source.aliases) aliasSet.add(a);
+    target.aliases = Array.from(aliasSet.values()).map((x) => String(x || "").trim()).filter(Boolean).slice(0, 50);
+
+    for (const r of requests) {
+      if (String(r.companyId || "") === sourceId) {
+        r.companyId = targetId;
+        r.companyName = String(target.name || "").slice(0, 120);
+      }
+    }
+    for (const ct of contacts) {
+      if (String(ct.companyId || "") === sourceId) {
+        ct.companyId = targetId;
+        ct.companyName = String(target.name || "");
+        const businessKey = normalizeBusiness(ct.business || "");
+        const channelKey = normalizeChannel(ct.contactChannel || "");
+        ct.key = `${targetId}|${businessKey}|${channelKey}`;
+        ct.updatedAt = Date.now();
+      }
+    }
+    for (const set of companyFollows.values()) {
+      if (!set || !set.has) continue;
+      if (set.has(sourceId)) {
+        set.delete(sourceId);
+        set.add(targetId);
+      }
+    }
+
+    const idx = companies.findIndex((x) => x.id === sourceId);
+    if (idx >= 0) companies.splice(idx, 1);
+    markDirty();
+    return json(res, 200, { ok: true, sourceId, targetId });
   }
 
   const companyFollowMatch = url.pathname.match(/^\/companies\/([^/]+)\/follow$/);
@@ -404,14 +485,26 @@ const server = http.createServer(async (req, res) => {
       byBusiness.set(bKey, list);
     }
 
+    const now = Date.now();
+    const computeStatus = (x) => {
+      const s = String(x?.status || "");
+      if (s === "invalid") return "invalid";
+      const verifiedAt = Number(x?.verifiedAt || 0);
+      if (verifiedAt && now - verifiedAt > CONTACT_STALE_MS) return "stale";
+      if (s === "verified" || verifiedAt) return "verified";
+      if (s) return s;
+      return "candidate";
+    };
+
     const items = Array.from(byBusiness.entries())
       .map(([b, list]) => {
         const statusRank = (x) => {
-          const s = String(x?.status || "");
+          const s = computeStatus(x);
           if (s === "verified") return 0;
-          if (!s && x?.verifiedAt) return 0;
-          if (s === "candidate") return 1;
-          return 2;
+          if (s === "stale") return 1;
+          if (s === "candidate") return 2;
+          if (s === "invalid") return 3;
+          return 4;
         };
         const sorted = list
           .slice()
@@ -433,11 +526,12 @@ const server = http.createServer(async (req, res) => {
             contactTitle: x.contactTitle || "",
             contactChannel: x.contactChannel || "",
             clue: x.clue || "",
-            status: String(x.status || ""),
+            status: computeStatus(x),
             verifiedAt: x.verifiedAt || 0,
             successCount: x.successCount || 0,
             failCount: x.failCount || 0,
-            lastFailureAt: x.lastFailureAt || 0
+            lastFailureAt: x.lastFailureAt || 0,
+            lastFailureReason: x.lastFailureReason || ""
           }))
         };
       })
@@ -1229,6 +1323,12 @@ function getAuthToken(req) {
   if (!m) return null;
   const token = m[1].trim();
   return token || null;
+}
+
+function isAdmin(req) {
+  if (!ADMIN_KEY) return false;
+  const key = String(req.headers["x-admin-key"] || "").trim();
+  return key && key === ADMIN_KEY;
 }
 
 function revokeToken(token, tokenToUserMap, tokenMetaMap, userTokensMap) {

@@ -49,6 +49,8 @@ export const enUS = {
   "contact.empty": "No contacts yet.",
   "contact.copy": "Copy contact",
   "contact.copied": "Copied",
+  "contact.stale": "Possibly stale",
+  "contact.candidate": "Unverified",
   "tools.title": "Networking Toolbox",
   "tools.subtitle": "Find company owners, introduce, earn help points",
   "tools.entry.search": "Find company owners",

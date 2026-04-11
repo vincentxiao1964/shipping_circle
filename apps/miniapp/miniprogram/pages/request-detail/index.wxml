@@ -55,6 +55,8 @@
           <view style="font-weight: 600;">{{c.contactName || "-"}}</view>
           <button size="mini" data-channel="{{c.contactChannel}}" catchtap="onTapCopyContact">{{i18n["contact.copy"]}}</button>
         </view>
+        <view class="muted" style="margin-top: 8rpx;" wx:if="{{c.status === 'stale'}}">{{i18n["contact.stale"]}}</view>
+        <view class="muted" style="margin-top: 8rpx;" wx:if="{{c.status === 'candidate'}}">{{i18n["contact.candidate"]}}</view>
         <view class="muted" style="margin-top: 8rpx;" wx:if="{{c.contactTitle}}">{{c.contactTitle}}</view>
         <view class="muted" style="margin-top: 8rpx; white-space: pre-wrap;" wx:if="{{c.clue}}">{{c.clue}}</view>
       </view>

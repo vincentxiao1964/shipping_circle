@@ -49,6 +49,8 @@ export const zhCN = {
   "contact.empty": "暂无可联系负责人",
   "contact.copy": "复制联系方式",
   "contact.copied": "已复制",
+  "contact.stale": "疑似过期",
+  "contact.candidate": "未验证",
   "tools.title": "人脉工具箱",
   "tools.subtitle": "找公司负责人、引荐、积累助人分",
   "tools.entry.search": "找公司负责人",
