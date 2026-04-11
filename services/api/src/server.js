@@ -75,6 +75,94 @@ function autoExpireClaims(now) {
   return changed;
 }
 
+function recommendIntroducersForRequest(input) {
+  const r = input?.request;
+  const viewerId = String(input?.viewerId || "").trim();
+  const limitRaw = Number(input?.limit ?? 5);
+  const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(1, limitRaw), 30) : 5;
+  const now = Number(input?.now || Date.now());
+  const includeViewer = Boolean(input?.includeViewer);
+  if (!r) return [];
+
+  const tagSet = new Set((Array.isArray(r.tags) ? r.tags : []).map((x) => String(x || "").trim()).filter(Boolean).slice(0, 10));
+  const companyId = String(r.companyId || "").trim();
+  const companyKey = companyId ? "" : normalizeCompany(r.companyName || "");
+
+  const byUser = new Map();
+  const RECENT_MS = 180 * 24 * 60 * 60 * 1000;
+  for (const i of introductions) {
+    if (i.outcome !== "success") continue;
+    const rr = requests.find((x) => x.id === i.requestId);
+    if (!rr) continue;
+    if (companyId) {
+      if (String(rr.companyId || "") !== companyId) continue;
+    } else {
+      if (normalizeCompany(rr.companyName || "") !== companyKey) continue;
+    }
+    const hasTag = Array.isArray(rr.tags) && rr.tags.some((t) => tagSet.has(String(t || "").trim()));
+    if (!hasTag) continue;
+    const userId = String(i.introducerId || "").trim();
+    if (!userId || userId === r.ownerId) continue;
+    const recencyBoost = i.resolvedAt && now - i.resolvedAt < RECENT_MS ? 1 : 0;
+    const item = byUser.get(userId) || { userId, successCount: 0, score: 0 };
+    item.successCount += 1;
+    item.score += 2 + recencyBoost;
+    byUser.set(userId, item);
+  }
+
+  if (companyId) {
+    for (const [uid, set] of companyFollows.entries()) {
+      if (!set || !set.has) continue;
+      if (uid === r.ownerId) continue;
+      if (set.has(companyId)) {
+        const item = byUser.get(uid) || { userId: uid, successCount: 0, score: 0 };
+        item.score += 1;
+        byUser.set(uid, item);
+      }
+    }
+  }
+
+  const complaintRecentCountByUser = new Map();
+  const COMPLAINT_RECENT_MS = 90 * 24 * 60 * 60 * 1000;
+  for (const c of requestComplaints) {
+    if (!c) continue;
+    const uid = String(c.toUserId || "").trim();
+    if (!uid) continue;
+    if (!c.createdAt || now - c.createdAt > COMPLAINT_RECENT_MS) continue;
+    complaintRecentCountByUser.set(uid, (complaintRecentCountByUser.get(uid) || 0) + 1);
+  }
+
+  return Array.from(byUser.values())
+    .filter((x) => includeViewer || x.userId !== viewerId)
+    .filter((x) => {
+      const stats = ensureUserStats(x.userId);
+      const complaintCount = Number(stats.complaintCount || 0);
+      if (complaintCount >= COMPLAINT_BLOCK_THRESHOLD) return false;
+      const recent = complaintRecentCountByUser.get(x.userId) || 0;
+      if (recent >= 2) return false;
+      return true;
+    })
+    .map((x) => {
+      const stats = ensureUserStats(x.userId);
+      const complaintCount = Number(stats.complaintCount || 0);
+      const recent = complaintRecentCountByUser.get(x.userId) || 0;
+      const pointsBoost = Math.min(3, Math.floor(Number(stats.points || 0) / 20));
+      const expiredCount = Number(stats.claimExpiredCount || 0);
+      const nudgePenaltyCount = Number(stats.claimNudgePenaltyCount || 0);
+      const complaintPenalty = complaintCount * 2 + recent * 3 + expiredCount * 2 + nudgePenaltyCount;
+      return {
+        ...x,
+        score: x.score + pointsBoost - complaintPenalty,
+        points: Number(stats.points || 0),
+        complaintCount,
+        claimExpiredCount: expiredCount,
+        claimNudgePenaltyCount: nudgePenaltyCount
+      };
+    })
+    .sort((a, b) => b.score - a.score || b.successCount - a.successCount)
+    .slice(0, limit);
+}
+
 const server = http.createServer(async (req, res) => {
   setCors(res);
 
@@ -130,6 +218,7 @@ const server = http.createServer(async (req, res) => {
         "POST /requests/:id/claims/:claimId/quote",
         "POST /requests/:id/claims/:claimId/complete",
         "POST /requests/:id/claims/:claimId/complain",
+        "POST /requests/:id/autoPing",
         "POST /requests/:id/ping",
         "POST /requests/:id/introductions",
         "GET /tags",
@@ -1274,94 +1363,18 @@ const server = http.createServer(async (req, res) => {
     if (!r) return json(res, 404, { error: "Not Found" });
     const limitRaw = Number(url.searchParams.get("limit") || 5);
     const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(1, limitRaw), 20) : 5;
-    const tagSet = new Set((Array.isArray(r.tags) ? r.tags : []).map((x) => String(x || "").trim()).filter(Boolean).slice(0, 10));
-    const companyId = String(r.companyId || "").trim();
-    const companyKey = companyId ? "" : normalizeCompany(r.companyName || "");
-
-    const byUser = new Map();
-    const RECENT_MS = 180 * 24 * 60 * 60 * 1000;
-    for (const i of introductions) {
-      if (i.outcome !== "success") continue;
-      const rr = requests.find((x) => x.id === i.requestId);
-      if (!rr) continue;
-      if (companyId) {
-        if (String(rr.companyId || "") !== companyId) continue;
-      } else {
-        if (normalizeCompany(rr.companyName || "") !== companyKey) continue;
-      }
-      const hasTag = Array.isArray(rr.tags) && rr.tags.some((t) => tagSet.has(String(t || "").trim()));
-      if (!hasTag) continue;
-      const userId = String(i.introducerId || "").trim();
-      if (!userId || userId === r.ownerId) continue;
-      const recencyBoost = i.resolvedAt && now - i.resolvedAt < RECENT_MS ? 1 : 0;
-      const item = byUser.get(userId) || { userId, successCount: 0, score: 0 };
-      item.successCount += 1;
-      item.score += 2 + recencyBoost;
-      byUser.set(userId, item);
-    }
-
-    if (companyId) {
-      for (const [uid, set] of companyFollows.entries()) {
-        if (!set || !set.has) continue;
-        if (uid === r.ownerId) continue;
-        if (set.has(companyId)) {
-          const item = byUser.get(uid) || { userId: uid, successCount: 0, score: 0 };
-          item.score += 1;
-          byUser.set(uid, item);
-        }
-      }
-    }
-
-    const complaintRecentCountByUser = new Map();
-    const COMPLAINT_RECENT_MS = 90 * 24 * 60 * 60 * 1000;
-    for (const c of requestComplaints) {
-      if (!c) continue;
-      const uid = String(c.toUserId || "").trim();
-      if (!uid) continue;
-      if (!c.createdAt || now - c.createdAt > COMPLAINT_RECENT_MS) continue;
-      complaintRecentCountByUser.set(uid, (complaintRecentCountByUser.get(uid) || 0) + 1);
-    }
-
-    const rows = Array.from(byUser.values())
-      .filter((x) => x.userId !== viewerId)
-      .filter((x) => {
-        const stats = ensureUserStats(x.userId);
-        const complaintCount = Number(stats.complaintCount || 0);
-        if (complaintCount >= COMPLAINT_BLOCK_THRESHOLD) return false;
-        const recent = complaintRecentCountByUser.get(x.userId) || 0;
-        if (recent >= 2) return false;
-        return true;
-      })
-      .map((x) => {
-        const stats = ensureUserStats(x.userId);
-        const complaintCount = Number(stats.complaintCount || 0);
-        const recent = complaintRecentCountByUser.get(x.userId) || 0;
-        const pointsBoost = Math.min(3, Math.floor(Number(stats.points || 0) / 20));
-        const expiredCount = Number(stats.claimExpiredCount || 0);
-        const nudgePenaltyCount = Number(stats.claimNudgePenaltyCount || 0);
-        const complaintPenalty = complaintCount * 2 + recent * 3 + expiredCount * 2 + nudgePenaltyCount;
-        return {
-          ...x,
-          score: x.score + pointsBoost - complaintPenalty,
-          complaintCount,
-          points: Number(stats.points || 0),
-          claimExpiredCount: expiredCount,
-          claimNudgePenaltyCount: nudgePenaltyCount
-        };
-      })
-      .sort((a, b) => b.score - a.score || b.successCount - a.successCount)
-      .slice(0, limit);
-    const items = rows.map((r) => {
-      const u = ensureUser(r.userId);
+    const rows = recommendIntroducersForRequest({ request: r, viewerId, limit, now, includeViewer: false });
+    const items = rows.map((row) => {
+      const u = ensureUser(row.userId);
       return {
         id: u.id,
         displayName: u.displayName,
-        score: r.score,
-        successCount: r.successCount,
-        complaintCount: r.complaintCount,
-        points: r.points,
-        claimExpiredCount: Number(r.claimExpiredCount || 0),
-        claimNudgePenaltyCount: Number(r.claimNudgePenaltyCount || 0)
+        score: row.score,
+        successCount: row.successCount,
+        complaintCount: row.complaintCount,
+        points: row.points,
+        claimExpiredCount: row.claimExpiredCount,
+        claimNudgePenaltyCount: row.claimNudgePenaltyCount
       };
     });
     return json(res, 200, { items });
@@ -1402,6 +1415,53 @@ const server = http.createServer(async (req, res) => {
     });
     markDirty();
     return json(res, 200, { ok: true, duplicated: false });
+  }
+
+  const requestAutoPingMatch = url.pathname.match(/^\/requests\/([^/]+)\/autoPing$/);
+  if (req.method === "POST" && requestAutoPingMatch) {
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!userId) return json(res, 401, { error: "Unauthorized" });
+    const id = decodeURIComponent(requestAutoPingMatch[1]);
+    const r = requests.find((x) => x.id === id);
+    if (!r) return json(res, 404, { error: "Not Found" });
+    if (r.ownerId !== userId) return json(res, 403, { error: "Forbidden" });
+    if (String(r.status || "open") !== "open") return json(res, 400, { error: "request closed" });
+
+    const body = await readJson(req).catch(() => null);
+    const limitRaw = Number(body?.limit ?? 8);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(1, limitRaw), 30) : 8;
+    const now = Date.now();
+    autoExpireClaims(now);
+
+    const candidates = recommendIntroducersForRequest({ request: r, viewerId: userId, limit, now, includeViewer: false });
+    const owner = ensureUser(userId);
+    let sent = 0;
+    let duplicated = 0;
+    for (const cand of candidates) {
+      const toUserId = String(cand.userId || "").trim();
+      if (!toUserId || toUserId === userId) continue;
+      ensureUser(toUserId);
+      const exists = notifications.some(
+        (n) => n && n.type === "requestPing" && n.toUserId === toUserId && String(n.data?.requestId || "") === r.id && String(n.data?.fromUserId || "") === userId
+      );
+      if (exists) {
+        duplicated += 1;
+        continue;
+      }
+      notifications.push({
+        id: `n_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+        toUserId,
+        type: "requestPing",
+        title: "Request needs help / 求助提醒",
+        content: `${owner.displayName}: ${r.title}`.slice(0, 500),
+        createdAt: now,
+        readAt: null,
+        data: { requestId: r.id, fromUserId: userId, companyId: r.companyId || "", companyName: r.companyName || "", tags: Array.isArray(r.tags) ? r.tags : [] }
+      });
+      sent += 1;
+    }
+    if (sent > 0) markDirty();
+    return json(res, 200, { ok: true, sent, duplicated, candidateCount: candidates.length });
   }
 
   const requestClaimMatch = url.pathname.match(/^\/requests\/([^/]+)\/claim$/);

@@ -4,6 +4,7 @@ import { confirmContact, invalidateContact, matchContacts, updateContact, type C
 import { getIsFollowing, toggleFollow } from "../../services/follows";
 import {
   ackRequestClaim,
+  autoPingRequest,
   claimRequest,
   complainRequestClaim,
   completeRequestClaim,
@@ -310,7 +311,10 @@ Page({
       tags,
       status: nextStatus
     })
-      .then(() => this.load())
+      .then(() => {
+        if (nextStatus === "open") autoPingRequest(this.data.item!.id).catch(() => {});
+        return this.load();
+      })
       .catch(() => {
         wx.showToast({ title: t("common.failed"), icon: "none" });
       })

@@ -141,6 +141,19 @@ export async function updateRequest(input: {
   }
 }
 
+export async function autoPingRequest(requestId: string, limit = 8): Promise<{ sent: number; duplicated: number } | null> {
+  const id = requestId.trim();
+  if (!id) return null;
+  const n = Math.min(Math.max(1, Number(limit || 8)), 30);
+  try {
+    const res = await requestJson<{ ok: boolean; sent: number; duplicated: number }>("POST", `/requests/${encodeURIComponent(id)}/autoPing`, { limit: n });
+    if (!res?.ok) return null;
+    return { sent: Number(res.sent || 0), duplicated: Number(res.duplicated || 0) };
+  } catch {
+    return null;
+  }
+}
+
 export async function submitIntroduction(input: {
   requestId: string;
   note?: string;

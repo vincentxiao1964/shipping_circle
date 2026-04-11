@@ -1,4 +1,4 @@
-import { createRequest, listPopularTags } from "../../services/requests";
+import { autoPingRequest, createRequest, listPopularTags } from "../../services/requests";
 import { getToken } from "../../services/api";
 import { listCompaniesPage, resolveCompanyByName, type CompanyListItem } from "../../services/companies";
 import { getMe } from "../../services/users";
@@ -254,6 +254,7 @@ Page({
     this.setData({ loading: true });
     createRequest({ title, companyId, companyName, ownerContactChannel, content, tags })
       .then((item) => {
+        autoPingRequest(item.id).catch(() => {});
         wx.showToast({ title: t("common.ok"), icon: "success" });
         wx.redirectTo({ url: `/pages/request-detail/index?id=${encodeURIComponent(item.id)}` });
       })
