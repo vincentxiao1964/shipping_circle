@@ -20,6 +20,7 @@
     "pages/tool-volume/index",
     "pages/tool-exchange/index",
     "pages/tool-ports/index",
+    "pages/admin/index",
     "pages/login/index",
     "pages/post-create/index",
     "pages/post-detail/index",

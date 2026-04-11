@@ -71,7 +71,7 @@ export async function requestJson<TResponse>(
   }
 }
 
-type RequestOnceInput = { method: HttpMethod; url: string; data?: RequestData; auth?: string | null };
+type RequestOnceInput = { method: HttpMethod; url: string; data?: RequestData; auth?: string | null; headers?: Record<string, string> };
 
 function requestJsonOnce<TResponse>(input: RequestOnceInput): Promise<TResponse> {
   return new Promise<TResponse>((resolve, reject) => {
@@ -81,6 +81,7 @@ function requestJsonOnce<TResponse>(input: RequestOnceInput): Promise<TResponse>
       data: input.data,
       header: {
         "Content-Type": "application/json",
+        ...(input.headers || {}),
         ...(input.auth ? { Authorization: `Bearer ${input.auth}` } : {})
       },
       success: (res) => {
@@ -95,6 +96,32 @@ function requestJsonOnce<TResponse>(input: RequestOnceInput): Promise<TResponse>
       fail: (err) => reject(err)
     });
   });
+}
+
+export async function requestJsonWithHeaders<TResponse>(
+  method: HttpMethod,
+  path: string,
+  data?: RequestData,
+  headers?: Record<string, string>,
+  token?: string | null
+): Promise<TResponse> {
+  const { baseUrl } = getApiConfig();
+  const url = `${baseUrl}${path}`;
+  const auth = token ?? getToken();
+  try {
+    return await requestJsonOnce<TResponse>({ method, url, data, auth, headers });
+  } catch (e) {
+    const statusCode = (e as any)?.statusCode as number | undefined;
+    if (statusCode !== 401) throw e;
+    if (!auth) return handleUnauthorized(e);
+    if (path === "/auth/wechat" || path === "/auth/refresh" || path === "/auth/logout") {
+      return handleUnauthorized(e);
+    }
+    const refreshed = await refreshTokenOnce(auth);
+    if (!refreshed?.token) return handleUnauthorized(e);
+    setToken(refreshed.token, refreshed.expiresAt);
+    return requestJsonOnce<TResponse>({ method, url, data, auth: refreshed.token, headers });
+  }
 }
 
 async function refreshToken(token: string): Promise<{ token: string; expiresAt?: number }> {

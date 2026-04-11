@@ -1,0 +1,54 @@
+<view class="container">
+  <view class="card">
+    <view style="font-weight: 600;">{{i18n["admin.adminKey"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{adminKeyInput}}"
+      bindinput="onInputAdminKey"
+      placeholder="{{i18n['admin.adminKeyHint']}}"
+      password="true"
+    />
+    <button size="mini" type="primary" style="margin-top: 12rpx;" bindtap="onTapSaveKey">{{i18n["admin.saveKey"]}}</button>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view style="font-weight: 600;">{{i18n["admin.normalizeDryRun"]}}</view>
+    <view class="row" style="margin-top: 12rpx;">
+      <button size="mini" data-v="{{dryRun}}" bindtap="onTapToggleDryRun">{{dryRun ? "ON" : "OFF"}}</button>
+      <button size="mini" style="margin-left: 12rpx;" bindtap="onTapNormalizeRun">{{i18n["admin.normalizeRun"]}}</button>
+      <button size="mini" style="margin-left: 12rpx;" type="warn" bindtap="onTapNormalizeApply">{{i18n["admin.normalizeApply"]}}</button>
+    </view>
+    <view class="muted" style="margin-top: 12rpx; white-space: pre-wrap;" wx:if="{{lastNormalizeText}}">
+      {{lastNormalizeText}}
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view class="row">
+      <view style="font-weight: 600;">{{i18n["admin.conflicts"]}}</view>
+      <button size="mini" bindtap="refreshConflicts">{{i18n["admin.refreshConflicts"]}}</button>
+    </view>
+    <view class="muted" style="margin-top: 12rpx;" wx:if="{{!conflicts || conflicts.length === 0}}">-</view>
+
+    <view class="card" style="margin-top: 12rpx;" wx:for="{{conflicts}}" wx:for-item="g" wx:key="key">
+      <view style="font-weight: 600;">{{g.key}}</view>
+      <view class="muted" style="margin-top: 8rpx;">count {{g.count}}</view>
+      <view class="muted" style="margin-top: 8rpx;">{{i18n["admin.keep"]}}: {{g.keepId}}</view>
+      <view class="row" style="margin-top: 12rpx;">
+        <button size="mini" type="warn" data-key="{{g.key}}" catchtap="onTapMergeGroup">{{i18n["admin.merge"]}}</button>
+      </view>
+
+      <view class="card" style="margin-top: 12rpx;" wx:for="{{g.contacts}}" wx:for-item="c" wx:key="id">
+        <view class="row">
+          <view style="font-weight: 600;">{{c.contactChannel}}</view>
+          <button size="mini" data-group-key="{{g.key}}" data-id="{{c.id}}" catchtap="onTapPickKeep">
+            {{c.id === g.keepId ? "KEEP" : "USE"}}
+          </button>
+        </view>
+        <view class="muted" style="margin-top: 8rpx;">{{c.contactName}} {{c.contactTitle}}</view>
+        <view class="muted" style="margin-top: 8rpx;">status {{c.status}} · success {{c.successCount}} · fail {{c.failCount}} · endorsed {{c.endorsedCount}}</view>
+      </view>
+    </view>
+  </view>
+</view>
+

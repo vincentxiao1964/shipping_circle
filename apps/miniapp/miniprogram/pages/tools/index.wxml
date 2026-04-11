@@ -19,4 +19,8 @@
   <view class="card" style="margin-top: 16rpx;" data-key="score" bindtap="onTapEntry">
     <view style="font-weight: 600;">{{i18n["tools.entry.score"]}}</view>
   </view>
+
+  <view class="card" style="margin-top: 16rpx;" data-key="admin" bindtap="onTapEntry">
+    <view style="font-weight: 600;">{{i18n["tools.entry.admin"]}}</view>
+  </view>
 </view>

@@ -6,7 +6,8 @@ const I18N_KEYS = [
   "tools.entry.search",
   "tools.entry.companyFollowing",
   "tools.entry.intros",
-  "tools.entry.score"
+  "tools.entry.score",
+  "tools.entry.admin"
 ] as const satisfies readonly MessageKey[];
 
 Page({
@@ -29,7 +30,8 @@ Page({
       search: "/pages/search/index",
       companyFollowing: "/pages/company-following/index",
       intros: "/pages/my-introductions/index",
-      score: "/pages/profile/index"
+      score: "/pages/profile/index",
+      admin: "/pages/admin/index"
     };
     const url = map[key];
     if (!url) return;
