@@ -2,6 +2,7 @@ import { getToken } from "../../services/api";
 import {
   batchConfirmContacts,
   batchInvalidateContacts,
+  batchReplaceContactChannel,
   confirmContact,
   invalidateContact,
   listContactsByCompany,
@@ -22,6 +23,12 @@ const I18N_KEYS = [
   "contact.selectedCount",
   "contact.batchConfirm",
   "contact.batchInvalid",
+  "contact.batchReplace",
+  "contact.batchReplaceFromTitle",
+  "contact.batchReplaceFromPlaceholder",
+  "contact.batchReplaceToTitle",
+  "contact.batchReplaceToPlaceholder",
+  "contact.batchReplaced",
   "contact.copy",
   "contact.copied",
   "contact.stale",
@@ -157,6 +164,39 @@ Page({
           .catch(() => {
             wx.showToast({ title: t("common.failed"), icon: "none" });
           });
+      }
+    });
+  },
+  onTapBatchReplace() {
+    const ids = (this.data.selectedIds || []).slice();
+    if (ids.length === 0) return;
+    wx.showModal({
+      title: t("contact.batchReplaceFromTitle"),
+      editable: true,
+      placeholderText: t("contact.batchReplaceFromPlaceholder"),
+      success: (r1) => {
+        if (!r1.confirm) return;
+        const from = String((r1 as any).content || "");
+        if (!from) return;
+        wx.showModal({
+          title: t("contact.batchReplaceToTitle"),
+          editable: true,
+          placeholderText: t("contact.batchReplaceToPlaceholder"),
+          success: (r2) => {
+            if (!r2.confirm) return;
+            const to = String((r2 as any).content || "");
+            batchReplaceContactChannel({ ids, from, to })
+              .then((ok) => {
+                if (!ok) throw new Error("failed");
+                wx.showToast({ title: t("contact.batchReplaced"), icon: "success" });
+                this.setData({ selectedIds: [], selectedText: t("contact.selectedCount", { count: 0 }) });
+                this.load();
+              })
+              .catch(() => {
+                wx.showToast({ title: t("common.failed"), icon: "none" });
+              });
+          }
+        });
       }
     });
   },

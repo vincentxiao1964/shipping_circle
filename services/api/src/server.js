@@ -60,6 +60,7 @@ const server = http.createServer(async (req, res) => {
         "GET /contacts/list?companyId=...",
         "POST /contacts/:id/feedback",
         "POST /contacts/batchFeedback",
+        "POST /contacts/batchUpdate",
         "PUT /admin/companies/:id/aliases",
         "POST /admin/companies/merge",
         "GET /requests",
@@ -672,6 +673,57 @@ const server = http.createServer(async (req, res) => {
       }
     }
     return json(res, 200, { ok: true, okCount, notFound });
+  }
+
+  if (req.method === "POST" && url.pathname === "/contacts/batchUpdate") {
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!userId) return json(res, 401, { error: "Unauthorized" });
+    const body = await readJson(req).catch(() => null);
+    const op = typeof body?.op === "string" ? body.op.trim() : "";
+    const ids = Array.isArray(body?.ids) ? body.ids.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 50) : [];
+    if (ids.length === 0) return json(res, 400, { error: "ids required" });
+    if (op !== "replaceChannel") return json(res, 400, { error: "op must be replaceChannel" });
+    const from = typeof body?.from === "string" ? body.from : "";
+    const to = typeof body?.to === "string" ? body.to : "";
+    if (!from) return json(res, 400, { error: "from required" });
+    const now = Date.now();
+    const notFound = [];
+    const conflictIds = [];
+    const unchangedIds = [];
+    let okCount = 0;
+
+    const computeKey = (ct, contactChannel) => {
+      const channelKey = normalizeChannel(contactChannel);
+      const businessKey = normalizeBusiness(ct.business || "");
+      if (ct.companyId) return `${ct.companyId}|${businessKey}|${channelKey}`;
+      return `${normalizeCompany(ct.companyName || "")}|${businessKey}|${channelKey}`;
+    };
+
+    markDirty();
+    for (const id of ids) {
+      const c = contacts.find((x) => x && x.id === id);
+      if (!c) {
+        notFound.push(id);
+        continue;
+      }
+      const current = String(c.contactChannel || "");
+      const next = current.includes(from) ? current.split(from).join(to) : current;
+      if (next === current) {
+        unchangedIds.push(id);
+        continue;
+      }
+      const nextKey = computeKey(c, next);
+      const conflict = contacts.find((x) => x && x.id !== c.id && String(x.key || "") === nextKey);
+      if (conflict) {
+        conflictIds.push(id);
+        continue;
+      }
+      c.contactChannel = next.slice(0, 200);
+      c.key = nextKey;
+      c.updatedAt = now;
+      okCount += 1;
+    }
+    return json(res, 200, { ok: true, okCount, notFound, conflictIds, unchangedIds });
   }
 
   const contactFeedbackMatch = url.pathname.match(/^\/contacts\/([^/]+)\/feedback$/);

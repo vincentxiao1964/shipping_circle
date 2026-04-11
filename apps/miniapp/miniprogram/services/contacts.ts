@@ -139,3 +139,17 @@ export async function batchInvalidateContacts(ids: string[], reason: string): Pr
     return false;
   }
 }
+
+export async function batchReplaceContactChannel(input: { ids: string[]; from: string; to: string }): Promise<boolean> {
+  const ids = Array.isArray(input.ids) ? input.ids.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 50) : [];
+  const from = String(input.from || "");
+  const to = String(input.to || "");
+  if (ids.length === 0) return false;
+  if (!from) return false;
+  try {
+    await requestJson("POST", "/contacts/batchUpdate", { op: "replaceChannel", ids, from, to });
+    return true;
+  } catch {
+    return false;
+  }
+}

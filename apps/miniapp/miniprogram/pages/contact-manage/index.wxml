@@ -36,6 +36,9 @@
       <button size="mini" style="margin-left: 12rpx;" catchtap="onTapBatchInvalid" wx:if="{{selectedIds.length > 0}}">
         {{i18n["contact.batchInvalid"]}}
       </button>
+      <button size="mini" style="margin-left: 12rpx;" catchtap="onTapBatchReplace" wx:if="{{selectedIds.length > 0}}">
+        {{i18n["contact.batchReplace"]}}
+      </button>
     </view>
   </view>
 
