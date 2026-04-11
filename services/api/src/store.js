@@ -24,6 +24,7 @@ export function initStore() {
     posts: [],
     requests: [],
     introductions: [],
+    contacts: [],
     companies: [],
     companyFollows: new Map(),
     notifications: [],
@@ -82,12 +83,14 @@ function applySnapshot(target, s) {
   const posts = Array.isArray(s?.posts) ? s.posts : defaultState().posts;
   const requests = Array.isArray(s?.requests) ? s.requests : [];
   const introductions = Array.isArray(s?.introductions) ? s.introductions : [];
+  const contacts = Array.isArray(s?.contacts) ? s.contacts : [];
   const companies = Array.isArray(s?.companies) ? s.companies : defaultState().companies;
   const notifications = Array.isArray(s?.notifications) ? s.notifications : [];
 
   target.posts.splice(0, target.posts.length, ...posts);
   target.requests.splice(0, target.requests.length, ...requests);
   target.introductions.splice(0, target.introductions.length, ...introductions);
+  target.contacts.splice(0, target.contacts.length, ...contacts);
   target.companies.splice(0, target.companies.length, ...companies);
   target.notifications.splice(0, target.notifications.length, ...notifications);
 
@@ -140,6 +143,7 @@ function snapshotState(state) {
     posts: state.posts,
     requests: state.requests,
     introductions: state.introductions,
+    contacts: state.contacts,
     companies: state.companies,
     companyFollows: Array.from(state.companyFollows.entries()).map(([uid, set]) => [uid, Array.from(set.values())]),
     follows: Array.from(state.follows.entries()).map(([uid, set]) => [uid, Array.from(set.values())]),
@@ -169,6 +173,7 @@ function defaultState() {
     ],
     requests: [],
     introductions: [],
+    contacts: [],
     companies: [
       {
         id: "c_seed_1",

@@ -45,6 +45,31 @@
   </view>
 
   <view class="card" style="margin-top: 16rpx;">
+    <view style="font-weight: 600;">{{i18n["contact.sectionTitle"]}}</view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{!contactLoading && contactGroups.length === 0}}">
+      {{i18n["contact.empty"]}}
+    </view>
+    <view
+      class="card"
+      style="margin-top: 16rpx;"
+      wx:for="{{contactGroups}}"
+      wx:for-item="g"
+      wx:key="business"
+    >
+      <view style="font-weight: 600;">{{g.business}}</view>
+      <view class="muted" style="margin-top: 8rpx;" wx:if="{{!g.contacts || g.contacts.length === 0}}">-</view>
+      <view class="card" style="margin-top: 12rpx;" wx:for="{{g.contacts}}" wx:for-item="c" wx:key="id">
+        <view class="row">
+          <view style="font-weight: 600;">{{c.contactName || "-"}}</view>
+          <button size="mini" data-channel="{{c.contactChannel}}" catchtap="onTapCopyContact">{{i18n["contact.copy"]}}</button>
+        </view>
+        <view class="muted" style="margin-top: 8rpx;" wx:if="{{c.contactTitle}}">{{c.contactTitle}}</view>
+        <view class="muted" style="margin-top: 8rpx;" wx:if="{{c.clue}}">{{c.clue}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
     <view style="font-weight: 600;">{{i18n["company.relatedRequests"]}} ({{related.length}})</view>
     <view class="muted" style="margin-top: 8rpx;" wx:if="{{related.length === 0}}">-</view>
     <view

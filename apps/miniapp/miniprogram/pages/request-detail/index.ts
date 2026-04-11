@@ -1,5 +1,6 @@
 import { getToken } from "../../services/api";
 import { getUserId } from "../../services/auth";
+import { matchContacts, type ContactMatchGroup } from "../../services/contacts";
 import { getRequest, updateRequest, resolveIntroduction, submitIntroduction, type RequestDetail } from "../../services/requests";
 import { syncPageI18n, t, type MessageKey } from "../../utils/i18n";
 
@@ -13,6 +14,10 @@ const I18N_KEYS = [
   "intro.clue",
   "intro.submit",
   "intro.required",
+  "contact.sectionTitle",
+  "contact.empty",
+  "contact.copy",
+  "contact.copied",
   "request.resolveSuccess",
   "request.resolveFail",
   "request.myRequest",
@@ -40,6 +45,8 @@ Page({
     id: "",
     meUserId: "",
     item: null as RequestDetail | null,
+    contactGroups: [] as ContactMatchGroup[],
+    contactLoading: false,
     loading: false
   },
   onLoad(query: Record<string, string | undefined>) {
@@ -58,6 +65,16 @@ Page({
   },
   onTapRefresh() {
     this.load();
+  },
+  onTapCopyContact(e: WechatMiniprogram.BaseEvent) {
+    const channel = (e.currentTarget as any)?.dataset?.channel as string | undefined;
+    if (!channel) return;
+    wx.setClipboardData({
+      data: channel,
+      success: () => {
+        wx.showToast({ title: t("contact.copied"), icon: "success" });
+      }
+    });
   },
   onTapIntroduce() {
     if (!this.data.item) return;
@@ -170,12 +187,33 @@ Page({
     return getRequest(this.data.id)
       .then((item) => {
         this.setData({ item });
+        return this.loadContacts(item);
       })
       .catch(() => {
         this.setData({ item: null });
       })
       .finally(() => {
         this.setData({ loading: false });
+      });
+  },
+  loadContacts(item: RequestDetail | null) {
+    if (!item?.companyName) {
+      this.setData({ contactGroups: [] });
+      return Promise.resolve();
+    }
+    if (!getToken()) {
+      this.setData({ contactGroups: [] });
+      return Promise.resolve();
+    }
+    if (this.data.contactLoading) return Promise.resolve();
+    this.setData({ contactLoading: true });
+    const businesses = Array.isArray(item.tags) ? item.tags.map((x) => String(x || "").trim()).filter(Boolean) : [];
+    return matchContacts({ companyName: item.companyName, businesses, limit: 5 })
+      .then((groups) => {
+        this.setData({ contactGroups: groups });
+      })
+      .finally(() => {
+        this.setData({ contactLoading: false });
       });
   }
 });

@@ -1,4 +1,5 @@
 import { getCompany } from "../../services/companies";
+import { matchContacts, type ContactMatchGroup } from "../../services/contacts";
 import { listRequestsPage, type RequestListItem } from "../../services/requests";
 import { getToken } from "../../services/api";
 import { toggleCompanyFollow } from "../../services/companies";
@@ -13,6 +14,10 @@ const I18N_KEYS = [
   "company.follow",
   "company.unfollow",
   "company.followersCount",
+  "contact.sectionTitle",
+  "contact.empty",
+  "contact.copy",
+  "contact.copied",
   "common.refresh",
   "common.failed",
   "common.notFound"
@@ -26,6 +31,8 @@ Page({
     id: "",
     item: null as any,
     related: [] as RequestListItem[],
+    contactGroups: [] as ContactMatchGroup[],
+    contactLoading: false,
     loading: false
   },
   onLoad(query: Record<string, string | undefined>) {
@@ -54,6 +61,16 @@ Page({
     if (!this.data.item) return;
     wx.navigateTo({
       url: `/pages/request-create/index?companyName=${encodeURIComponent(this.data.item.name)}&business=${encodeURIComponent(business || "")}`
+    });
+  },
+  onTapCopyContact(e: WechatMiniprogram.BaseEvent) {
+    const channel = (e.currentTarget as any)?.dataset?.channel as string | undefined;
+    if (!channel) return;
+    wx.setClipboardData({
+      data: channel,
+      success: () => {
+        wx.showToast({ title: t("contact.copied"), icon: "success" });
+      }
     });
   },
   onTapToggleFollow() {
@@ -91,9 +108,12 @@ Page({
         const followerCount = typeof item?.followerCount === "number" ? item.followerCount : 0;
         this.setData({ item: item ? { ...item, followersText: t("company.followersCount", { count: followerCount }) } : item });
         if (item?.name) {
-          return listRequestsPage({ limit: 10, company: item.name }).then((page) => {
-            this.setData({ related: page.items });
-          });
+          return Promise.all([
+            listRequestsPage({ limit: 10, company: item.name }).then((page) => {
+              this.setData({ related: page.items });
+            }),
+            this.loadContacts(item)
+          ]).then(() => {});
         }
       })
       .catch(() => {
@@ -102,6 +122,26 @@ Page({
       })
       .finally(() => {
         this.setData({ loading: false });
+      });
+  },
+  loadContacts(item: any) {
+    if (!item?.name) {
+      this.setData({ contactGroups: [] });
+      return Promise.resolve();
+    }
+    if (!getToken()) {
+      this.setData({ contactGroups: [] });
+      return Promise.resolve();
+    }
+    if (this.data.contactLoading) return Promise.resolve();
+    this.setData({ contactLoading: true });
+    const businesses = Array.isArray(item.roles) ? item.roles.map((r: any) => String(r?.business || "").trim()).filter(Boolean) : [];
+    return matchContacts({ companyName: item.name, businesses, limit: 5 })
+      .then((groups) => {
+        this.setData({ contactGroups: groups });
+      })
+      .finally(() => {
+        this.setData({ contactLoading: false });
       });
   }
 });

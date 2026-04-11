@@ -13,6 +13,7 @@ const userStats = store.userStats;
 const posts = store.posts;
 const requests = store.requests;
 const introductions = store.introductions;
+const contacts = store.contacts;
 const companies = store.companies;
 const companyFollows = store.companyFollows;
 const notifications = store.notifications;
@@ -51,6 +52,7 @@ const server = http.createServer(async (req, res) => {
         "GET /companies/:id",
         "POST /companies/:id/follow",
         "GET /companies/me/following",
+        "GET /contacts/match",
         "GET /requests",
         "POST /requests",
         "GET /requests/:id",
@@ -355,6 +357,68 @@ const server = http.createServer(async (req, res) => {
     companyFollows.set(userId, set);
     const followerCount = getCompanyFollowerCount(companyId, companyFollows);
     return json(res, 200, { following: set.has(companyId), followerCount });
+  }
+
+  if (req.method === "GET" && url.pathname === "/contacts/match") {
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!userId) return json(res, 401, { error: "Unauthorized" });
+    const companyName = String(url.searchParams.get("company") || "").trim();
+    const businessesParam = String(url.searchParams.get("businesses") || url.searchParams.get("business") || "");
+    const limitRaw = Number(url.searchParams.get("limit") || 5);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(1, limitRaw), 20) : 5;
+    if (!companyName) return json(res, 400, { error: "company required" });
+
+    const companyKey = normalizeCompany(companyName);
+    const wanted = businessesParam
+      .split(",")
+      .map((x) => normalizeBusiness(x))
+      .filter(Boolean)
+      .slice(0, 20);
+    const wantedSet = wanted.length > 0 ? new Set(wanted) : null;
+
+    const matches = contacts.filter((c) => {
+      if (!c) return false;
+      if (!c.verifiedAt) return false;
+      const cCompanyKey = normalizeCompany(c.companyName || "");
+      if (!cCompanyKey || cCompanyKey !== companyKey) return false;
+      if (wantedSet) {
+        const b = normalizeBusiness(c.business || "");
+        if (!wantedSet.has(b)) return false;
+      }
+      return true;
+    });
+
+    const byBusiness = new Map();
+    for (const c of matches) {
+      const bKey = normalizeBusiness(c.business || "");
+      const list = byBusiness.get(bKey) || [];
+      list.push(c);
+      byBusiness.set(bKey, list);
+    }
+
+    const items = Array.from(byBusiness.entries())
+      .map(([b, list]) => {
+        const sorted = list
+          .slice()
+          .sort((a, b) => (b.successCount || 0) - (a.successCount || 0) || (b.verifiedAt || 0) - (a.verifiedAt || 0));
+        return {
+          business: b,
+          contacts: sorted.slice(0, limit).map((x) => ({
+            id: x.id,
+            companyName: x.companyName,
+            business: x.business,
+            contactName: x.contactName || "",
+            contactTitle: x.contactTitle || "",
+            contactChannel: x.contactChannel || "",
+            clue: x.clue || "",
+            verifiedAt: x.verifiedAt || 0,
+            successCount: x.successCount || 0
+          }))
+        };
+      })
+      .sort((a, b) => a.business.localeCompare(b.business));
+
+    return json(res, 200, { items });
   }
 
   if (req.method === "GET" && url.pathname === "/requests") {
@@ -675,6 +739,19 @@ const server = http.createServer(async (req, res) => {
     if (outcome === "success") {
       stats.points += 5;
       stats.introSuccessCount += 1;
+      const companyName = String(r.companyName || "").trim();
+      const channel = String(intro.contactChannel || "").trim();
+      if (companyName && channel && Array.isArray(r.tags)) {
+        const businesses = r.tags.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 10);
+        for (const business of businesses) {
+          upsertVerifiedContactFromIntroduction({
+            companyName,
+            business,
+            intro,
+            requestId: r.id
+          });
+        }
+      }
     } else {
       stats.points += 1;
       stats.introFailCount += 1;
@@ -1191,6 +1268,78 @@ function getCompanyFollowerCount(companyId, companyFollowsMap) {
     if (set && set.has && set.has(companyId)) count += 1;
   }
   return count;
+}
+
+function normalizeCompany(input) {
+  return String(input || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[\/\\]/g, "");
+}
+
+function normalizeBusiness(input) {
+  return String(input || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "");
+}
+
+function normalizeChannel(input) {
+  return String(input || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "");
+}
+
+function upsertVerifiedContactFromIntroduction(input) {
+  const companyName = String(input?.companyName || "").trim();
+  const business = String(input?.business || "").trim();
+  const intro = input?.intro;
+  const requestId = String(input?.requestId || "").trim();
+  if (!companyName || !business || !intro) return null;
+  const contactChannel = String(intro.contactChannel || "").trim();
+  if (!contactChannel) return null;
+
+  const key = `${normalizeCompany(companyName)}|${normalizeBusiness(business)}|${normalizeChannel(contactChannel)}`;
+  const existing = contacts.find((c) => String(c?.key || "") === key);
+  const now = Date.now();
+  if (existing) {
+    existing.companyName = companyName;
+    existing.business = business;
+    if (intro.contactName) existing.contactName = String(intro.contactName || "").trim().slice(0, 80);
+    if (intro.contactTitle) existing.contactTitle = String(intro.contactTitle || "").trim().slice(0, 120);
+    existing.contactChannel = contactChannel.slice(0, 200);
+    if (intro.clue) existing.clue = String(intro.clue || "").trim().slice(0, 1000);
+    existing.verifiedAt = now;
+    existing.successCount = Number(existing.successCount || 0) + 1;
+    existing.lastSourceIntroId = String(intro.id || "");
+    existing.lastRequestId = requestId;
+    existing.updatedAt = now;
+    markDirty();
+    return existing;
+  }
+
+  const item = {
+    id: `ct_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    key,
+    companyName,
+    business,
+    contactName: String(intro.contactName || "").trim().slice(0, 80),
+    contactTitle: String(intro.contactTitle || "").trim().slice(0, 120),
+    contactChannel: contactChannel.slice(0, 200),
+    clue: String(intro.clue || "").trim().slice(0, 1000),
+    createdAt: now,
+    updatedAt: now,
+    verifiedAt: now,
+    successCount: 1,
+    createdByUserId: String(intro.introducerId || ""),
+    lastSourceIntroId: String(intro.id || ""),
+    lastRequestId: requestId
+  };
+  markDirty();
+  contacts.push(item);
+  return item;
 }
 
 function paginateByCursor(list, cursor, limit, getId) {
