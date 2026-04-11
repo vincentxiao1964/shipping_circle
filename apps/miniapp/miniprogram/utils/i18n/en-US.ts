@@ -129,6 +129,7 @@ export const enUS = {
   "request.tagsPick": "Pick popular businesses",
   "request.tagsCustom": "Custom…",
   "request.businessRequired": "Select at least one business",
+  "request.companyMatched": "Matched: {name}",
   "request.content": "Request",
   "request.publish": "Publish",
   "request.save": "Save",

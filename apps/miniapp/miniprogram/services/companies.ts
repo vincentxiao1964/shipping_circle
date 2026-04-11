@@ -52,6 +52,18 @@ export async function getCompany(id: string): Promise<CompanyDetail | null> {
   }
 }
 
+export async function resolveCompanyByName(name: string): Promise<{ id: string; name: string } | null> {
+  const n = String(name || "").trim();
+  if (!n) return null;
+  try {
+    const res = await requestJson<{ item: { id: string; name: string } }>("GET", `/companies/resolve?name=${encodeURIComponent(n)}`);
+    if (!res?.item?.id) return null;
+    return { id: String(res.item.id), name: String(res.item.name || "") };
+  } catch {
+    return null;
+  }
+}
+
 export async function createCompany(input: { name: string; region: string; tags: string[]; roles: CompanyRole[] }): Promise<CompanyDetail> {
   try {
     const res = await requestJson<{ item: CompanyDetail }>("POST", "/companies", input);

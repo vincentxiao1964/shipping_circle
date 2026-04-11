@@ -150,11 +150,13 @@ Page({
     }
     const nextStatus = this.data.item.status === "closed" ? "open" : "closed";
     const tags = Array.isArray(this.data.item.tags) ? this.data.item.tags : [];
+    const companyId = this.data.item.companyId || "";
     const companyName = this.data.item.companyName || "";
     this.setData({ loading: true });
     updateRequest({
       id: this.data.item.id,
       title: this.data.item.title,
+      companyId,
       companyName,
       content: this.data.item.content,
       tags,

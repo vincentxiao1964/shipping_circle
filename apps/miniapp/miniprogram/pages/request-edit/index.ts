@@ -1,5 +1,6 @@
 import { getToken } from "../../services/api";
 import { getRequest, listPopularTags, updateRequest } from "../../services/requests";
+import { resolveCompanyByName } from "../../services/companies";
 import { syncPageI18n, t, type MessageKey } from "../../utils/i18n";
 
 const I18N_KEYS = [
@@ -10,6 +11,7 @@ const I18N_KEYS = [
   "request.tagsPick",
   "request.tagsCustom",
   "request.businessRequired",
+  "request.companyMatched",
   "request.content",
   "request.save",
   "common.ok",
@@ -45,11 +47,19 @@ Page({
     }
     this.load();
   },
+  onUnload() {
+    const timer = (this as any)._resolveTimer as any;
+    if (timer) clearTimeout(timer);
+  },
   onInputTitle(e: WechatMiniprogram.Input) {
     this.setData({ title: e.detail.value });
   },
   onInputCompanyName(e: WechatMiniprogram.Input) {
     this.setData({ companyName: e.detail.value, companyId: "" });
+    this.scheduleResolveCompany();
+  },
+  onBlurCompanyName() {
+    this.resolveCompanyNow();
   },
   onInputTags(e: WechatMiniprogram.Input) {
     const tagsInput = e.detail.value;
@@ -155,6 +165,24 @@ Page({
       .finally(() => {
         this.setData({ loading: false });
       });
+  },
+  scheduleResolveCompany() {
+    const timer = (this as any)._resolveTimer as any;
+    if (timer) clearTimeout(timer);
+    (this as any)._resolveTimer = setTimeout(() => this.resolveCompanyNow(), 350);
+  },
+  resolveCompanyNow() {
+    const name = this.data.companyName.trim();
+    if (!name) return;
+    if (this.data.companyId) return;
+    resolveCompanyByName(name)
+      .then((item) => {
+        if (!item?.id) return;
+        if (this.data.companyId) return;
+        this.setData({ companyId: item.id, companyName: item.name || this.data.companyName });
+        wx.showToast({ title: t("request.companyMatched", { name: item.name || name }), icon: "none" });
+      })
+      .catch(() => {});
   }
 });
 

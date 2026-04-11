@@ -129,6 +129,7 @@ export const zhCN = {
   "request.tagsPick": "选择热门业务",
   "request.tagsCustom": "自定义…",
   "request.businessRequired": "请至少选择一个业务",
+  "request.companyMatched": "已匹配公司：{name}",
   "request.content": "需求描述",
   "request.publish": "发布",
   "request.save": "保存",
