@@ -13,3 +13,4 @@ Thumbs.db
 .vscode/
 apps/miniapp/project.private.config.json
 project.private.config.json
+services/api/data/

@@ -111,7 +111,7 @@ export const zhCN = {
   "me.language.en": "English",
   "login.title": "登录",
   "login.wechat": "微信一键登录",
-  "login.tip": "当前为占位登录，后续接入后端。",
+  "login.tip": "后端可配置 WX_APPID/WX_SECRET 接入真实微信登录；未配置时使用开发模式。",
   "request.create": "发需求",
   "request.createTitle": "发布需求",
   "request.detail": "需求详情",

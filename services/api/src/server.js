@@ -1,40 +1,20 @@
 import http from "node:http";
 import { randomUUID } from "node:crypto";
+import { initStore, markDirty } from "./store.js";
 
 const PORT = Number(process.env.PORT || 8787);
 
-const tokenToUser = new Map();
-const users = new Map();
-const userStats = new Map();
-const posts = [
-  {
-    id: "p_seed_1",
-    authorId: "system",
-    title: "Welcome / 欢迎",
-    content: "Shipping Circle API is running.\n海运圈服务端已启动。",
-    createdAt: Date.now() - 60_000,
-    comments: [],
-    likeUserIds: []
-  }
-];
-const requests = [];
-const introductions = [];
-const companies = [
-  {
-    id: "c_seed_1",
-    name: "示例公司 / Demo Co.",
-    region: "Shanghai",
-    tags: ["订舱", "东南亚"],
-    roles: [
-      { business: "订舱", title: "负责人" },
-      { business: "拖车", title: "负责人" }
-    ],
-    createdAt: Date.now() - 180_000
-  }
-];
-const companyFollows = new Map();
-const notifications = [];
-const follows = new Map();
+const store = initStore();
+const tokenToUser = store.tokenToUser;
+const users = store.users;
+const userStats = store.userStats;
+const posts = store.posts;
+const requests = store.requests;
+const introductions = store.introductions;
+const companies = store.companies;
+const companyFollows = store.companyFollows;
+const notifications = store.notifications;
+const follows = store.follows;
 const MAX_PORT_TRIES = 20;
 
 const server = http.createServer(async (req, res) => {
@@ -102,14 +82,16 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "POST" && url.pathname === "/auth/wechat") {
+    markDirty();
     const body = await readJson(req).catch(() => null);
     const code = body?.code;
     if (!code || typeof code !== "string") return json(res, 400, { error: "code required" });
 
-    const userId = `u_${hash(code)}`;
+    const openid = await getWeChatOpenId(code);
+    const userId = `u_${hash(openid)}`;
     const token = randomUUID();
     tokenToUser.set(token, userId);
-    ensureUser(userId);
+    ensureUser(userId, { openid });
     if (!follows.has(userId)) follows.set(userId, new Set());
     notifications.push({
       id: `n_${Date.now()}_${Math.random().toString(16).slice(2)}`,
@@ -142,6 +124,7 @@ const server = http.createServer(async (req, res) => {
     const displayName = typeof body?.displayName === "string" ? body.displayName.trim() : "";
     if (!displayName) return json(res, 400, { error: "displayName required" });
     const u = ensureUser(userId);
+    markDirty();
     u.displayName = displayName.slice(0, 40);
     users.set(userId, u);
     return json(res, 200, { item: { id: u.id, displayName: u.displayName } });
@@ -302,6 +285,7 @@ const server = http.createServer(async (req, res) => {
       roles,
       createdAt: Date.now()
     };
+    markDirty();
     companies.push(item);
     return json(res, 201, { item });
   }
@@ -336,6 +320,7 @@ const server = http.createServer(async (req, res) => {
     const c = companies.find((x) => x.id === companyId);
     if (!c) return json(res, 404, { error: "Not Found" });
     const set = companyFollows.get(userId) || new Set();
+    markDirty();
     if (set.has(companyId)) set.delete(companyId);
     else set.add(companyId);
     companyFollows.set(userId, set);
@@ -426,6 +411,7 @@ const server = http.createServer(async (req, res) => {
       status: "open",
       createdAt: Date.now()
     };
+    markDirty();
     requests.push(reqItem);
     return json(res, 201, {
       item: {
@@ -497,6 +483,8 @@ const server = http.createServer(async (req, res) => {
       ? body.tags.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 10)
       : null;
 
+    const willChange = Boolean(title || content || companyName || tags || status);
+    if (willChange) markDirty();
     if (title) r.title = title.slice(0, 80);
     if (content) r.content = content.slice(0, 2000);
     if (companyName) r.companyName = companyName.slice(0, 120);
@@ -566,6 +554,7 @@ const server = http.createServer(async (req, res) => {
       resolvedAt: null,
       outcome: null
     };
+    markDirty();
     introductions.push(intro);
 
     notifications.push({
@@ -649,6 +638,7 @@ const server = http.createServer(async (req, res) => {
     if (outcome !== "success" && outcome !== "fail") return json(res, 400, { error: "outcome must be success|fail" });
     if (intro.resolvedAt) return json(res, 400, { error: "already resolved" });
 
+    markDirty();
     intro.outcome = outcome;
     intro.resolvedAt = Date.now();
 
@@ -839,6 +829,7 @@ const server = http.createServer(async (req, res) => {
       comments: [],
       likeUserIds: []
     };
+    markDirty();
     posts.push(post);
     return json(res, 201, { item: viewPostDetail(post, userId) });
   }
@@ -863,6 +854,7 @@ const server = http.createServer(async (req, res) => {
     ensureUser(userId);
     ensureUser(post.authorId);
     const exists = post.likeUserIds.includes(userId);
+    markDirty();
     if (exists) {
       post.likeUserIds = post.likeUserIds.filter((u) => u !== userId);
     } else {
@@ -904,6 +896,7 @@ const server = http.createServer(async (req, res) => {
       content,
       createdAt: Date.now()
     };
+    markDirty();
     post.comments.push(comment);
     if (post.authorId && post.authorId !== userId) {
       notifications.push({
@@ -932,6 +925,7 @@ const server = http.createServer(async (req, res) => {
     ensureUser(targetId);
     const set = follows.get(userId) || new Set();
     const isFollowing = set.has(targetId);
+    markDirty();
     if (isFollowing) set.delete(targetId);
     else set.add(targetId);
     follows.set(userId, set);
@@ -985,7 +979,10 @@ const server = http.createServer(async (req, res) => {
     const id = decodeURIComponent(notificationReadMatch[1]);
     const n = notifications.find((x) => x.id === id);
     if (!n || n.toUserId !== userId) return json(res, 404, { error: "Not Found" });
-    if (!n.readAt) n.readAt = Date.now();
+    if (!n.readAt) {
+      markDirty();
+      n.readAt = Date.now();
+    }
     return json(res, 200, { ok: true, readAt: n.readAt });
   }
 
@@ -993,6 +990,7 @@ const server = http.createServer(async (req, res) => {
     const userId = getAuthUserId(req, tokenToUser);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     const now = Date.now();
+    markDirty();
     for (const n of notifications) {
       if (n.toUserId === userId && !n.readAt) n.readAt = now;
     }
@@ -1082,11 +1080,13 @@ function viewPostDetail(post, viewerId) {
   };
 }
 
-function ensureUser(userId) {
+function ensureUser(userId, opts) {
   const existing = users.get(userId);
   if (existing) return existing;
+  markDirty();
   const displayName = userId === "system" ? "System" : `User ${userId.slice(-4)}`;
-  const u = { id: userId, displayName };
+  const openid = typeof opts?.openid === "string" ? opts.openid : "";
+  const u = { id: userId, displayName, openid, createdAt: Date.now() };
   users.set(userId, u);
   ensureUserStats(userId);
   return u;
@@ -1095,6 +1095,7 @@ function ensureUser(userId) {
 function ensureUserStats(userId) {
   const existing = userStats.get(userId);
   if (existing) return existing;
+  markDirty();
   const s = { points: 0, introSuccessCount: 0, introFailCount: 0 };
   userStats.set(userId, s);
   return s;
@@ -1144,4 +1145,26 @@ function hash(input) {
   let out = 0;
   for (let i = 0; i < input.length; i += 1) out = (out * 31 + input.charCodeAt(i)) >>> 0;
   return out.toString(16);
+}
+
+async function getWeChatOpenId(code) {
+  const appid = String(process.env.WX_APPID || "").trim();
+  const secret = String(process.env.WX_SECRET || "").trim();
+  if (!appid || !secret) return `mock_${hash(code)}`;
+
+  const url = new URL("https://api.weixin.qq.com/sns/jscode2session");
+  url.searchParams.set("appid", appid);
+  url.searchParams.set("secret", secret);
+  url.searchParams.set("js_code", String(code || ""));
+  url.searchParams.set("grant_type", "authorization_code");
+
+  try {
+    const resp = await fetch(url.toString(), { method: "GET" });
+    const data = await resp.json().catch(() => ({}));
+    const openid = typeof data?.openid === "string" ? data.openid.trim() : "";
+    if (openid) return openid;
+    return `mock_${hash(code)}`;
+  } catch {
+    return `mock_${hash(code)}`;
+  }
 }

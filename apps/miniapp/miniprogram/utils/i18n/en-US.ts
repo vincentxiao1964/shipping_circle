@@ -111,7 +111,7 @@ export const enUS = {
   "me.language.en": "English",
   "login.title": "Login",
   "login.wechat": "WeChat One-tap Login",
-  "login.tip": "Login is mocked for now. Backend integration comes next.",
+  "login.tip": "Set WX_APPID/WX_SECRET on the API to enable real WeChat login; otherwise dev mode is used.",
   "request.create": "New Request",
   "request.createTitle": "Create Request",
   "request.detail": "Request Detail",

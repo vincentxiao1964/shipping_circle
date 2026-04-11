@@ -16,7 +16,7 @@
 ## 目录结构
 
 - `apps/miniapp`：微信小程序（miniprogram）
-- `services/api`：Node.js API（内存数据，便于快速演示）
+- `services/api`：Node.js API（本地 JSON 持久化，便于快速演示）
 
 ## 本地运行
 
@@ -28,6 +28,13 @@ npm run dev:api
 ```
 
 默认地址：`http://localhost:8787`
+
+数据文件：`services/api/data/db.json`（已加入 .gitignore）
+
+可选环境变量（真实微信登录）：
+
+- `WX_APPID`
+- `WX_SECRET`
 
 ### 2) 运行小程序
 
