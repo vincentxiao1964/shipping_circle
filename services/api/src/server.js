@@ -184,7 +184,8 @@ const server = http.createServer(async (req, res) => {
       ? body.businesses.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 20)
       : [];
     const title = typeof body?.title === "string" ? body.title.trim() : "";
-    const contactChannel = typeof body?.contactChannel === "string" ? body.contactChannel.trim() : "";
+    const contactChannelRaw = typeof body?.contactChannel === "string" ? body.contactChannel.trim() : "";
+    const contactChannel = contactChannelRaw ? (canonicalizeContactChannel(contactChannelRaw)?.display || contactChannelRaw) : "";
     const contactVisibility = typeof body?.contactVisibility === "string" ? body.contactVisibility.trim() : "";
     if (!displayName) return json(res, 400, { error: "displayName required" });
     const u = ensureUser(userId);
@@ -852,7 +853,8 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (action === "update") {
-      const contactChannel = typeof body?.contactChannel === "string" ? body.contactChannel.trim() : "";
+      const contactChannelRaw = typeof body?.contactChannel === "string" ? body.contactChannel.trim() : "";
+      const contactChannel = contactChannelRaw ? (canonicalizeContactChannel(contactChannelRaw)?.display || contactChannelRaw) : "";
       const contactName = typeof body?.contactName === "string" ? body.contactName.trim() : "";
       const contactTitle = typeof body?.contactTitle === "string" ? body.contactTitle.trim() : "";
       const clue = typeof body?.clue === "string" ? body.clue.trim() : "";
@@ -946,7 +948,7 @@ const server = http.createServer(async (req, res) => {
     const content = typeof body?.content === "string" ? body.content.trim() : "";
     const companyId = typeof body?.companyId === "string" ? body.companyId.trim() : "";
     const companyName = typeof body?.companyName === "string" ? body.companyName.trim() : "";
-    const ownerContactChannel = typeof body?.ownerContactChannel === "string" ? body.ownerContactChannel.trim() : "";
+    const ownerContactChannelRaw = typeof body?.ownerContactChannel === "string" ? body.ownerContactChannel.trim() : "";
     const tags = Array.isArray(body?.tags)
       ? body.tags.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 10)
       : [];
@@ -961,9 +963,10 @@ const server = http.createServer(async (req, res) => {
     const finalCompany = companyFromId || companyFromName;
     const finalCompanyId = finalCompany ? finalCompany.id : "";
     const finalCompanyName = finalCompany ? finalCompany.name : companyName;
-    const finalOwnerContactChannel = (ownerContactChannel || String(u.contactChannel || "")).trim().slice(0, 200);
-    if (ownerContactChannel && !String(u.contactChannel || "").trim()) {
-      u.contactChannel = ownerContactChannel.slice(0, 200);
+    const ownerChannelCandidate = (ownerContactChannelRaw || String(u.contactChannel || "")).trim();
+    const finalOwnerContactChannel = (canonicalizeContactChannel(ownerChannelCandidate)?.display || ownerChannelCandidate).slice(0, 200);
+    if (ownerContactChannelRaw && !String(u.contactChannel || "").trim()) {
+      u.contactChannel = finalOwnerContactChannel.slice(0, 200);
       users.set(userId, u);
       upsertSelfClaimedContactsFromUser(u);
     }
@@ -1155,13 +1158,13 @@ const server = http.createServer(async (req, res) => {
     const content = typeof body?.content === "string" ? body.content.trim() : "";
     const companyId = typeof body?.companyId === "string" ? body.companyId.trim() : "";
     const companyName = typeof body?.companyName === "string" ? body.companyName.trim() : "";
-    const ownerContactChannel = typeof body?.ownerContactChannel === "string" ? body.ownerContactChannel.trim() : "";
+    const ownerContactChannelRaw = typeof body?.ownerContactChannel === "string" ? body.ownerContactChannel.trim() : "";
     const status = typeof body?.status === "string" ? body.status.trim() : "";
     const tags = Array.isArray(body?.tags)
       ? body.tags.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 10)
       : null;
 
-    const willChange = Boolean(title || content || companyId || companyName || ownerContactChannel || tags || status);
+    const willChange = Boolean(title || content || companyId || companyName || ownerContactChannelRaw || tags || status);
     if (willChange) markDirty();
     if (title) r.title = title.slice(0, 80);
     if (content) r.content = content.slice(0, 2000);
@@ -1174,7 +1177,10 @@ const server = http.createServer(async (req, res) => {
       r.companyName = companyName.slice(0, 120);
     }
     if (tags) r.tags = tags;
-    if (ownerContactChannel) r.ownerContactChannel = ownerContactChannel.slice(0, 200);
+    if (ownerContactChannelRaw) {
+      const normalized = canonicalizeContactChannel(ownerContactChannelRaw)?.display || ownerContactChannelRaw;
+      r.ownerContactChannel = normalized.slice(0, 200);
+    }
     if (status === "open" || status === "closed") r.status = status;
 
     return json(res, 200, {
@@ -1216,7 +1222,8 @@ const server = http.createServer(async (req, res) => {
     const body = await readJson(req).catch(() => null);
     const contactName = typeof body?.contactName === "string" ? body.contactName.trim() : "";
     const contactTitle = typeof body?.contactTitle === "string" ? body.contactTitle.trim() : "";
-    const contactChannel = typeof body?.contactChannel === "string" ? body.contactChannel.trim() : "";
+    const contactChannelRaw = typeof body?.contactChannel === "string" ? body.contactChannel.trim() : "";
+    const contactChannel = contactChannelRaw ? (canonicalizeContactChannel(contactChannelRaw)?.display || contactChannelRaw) : "";
     const clue = typeof body?.clue === "string" ? body.clue.trim() : "";
     let note = typeof body?.note === "string" ? body.note.trim() : "";
     if (!note) {
@@ -1337,7 +1344,9 @@ const server = http.createServer(async (req, res) => {
       stats.introSuccessCount += 1;
       const companyId = String(r.companyId || "").trim();
       const companyName = String(r.companyName || "").trim();
-      const channel = String(intro.contactChannel || "").trim();
+      const channelRaw = String(intro.contactChannel || "").trim();
+      const channel = channelRaw ? (canonicalizeContactChannel(channelRaw)?.display || channelRaw) : "";
+      if (channel && channel !== channelRaw) intro.contactChannel = channel;
       if ((companyId || companyName) && channel && Array.isArray(r.tags)) {
         const businesses = r.tags.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 10);
         for (const business of businesses) {
@@ -1355,7 +1364,9 @@ const server = http.createServer(async (req, res) => {
       stats.introFailCount += 1;
       const companyId = String(r.companyId || "").trim();
       const companyName = String(r.companyName || "").trim();
-      const channel = String(intro.contactChannel || "").trim();
+      const channelRaw = String(intro.contactChannel || "").trim();
+      const channel = channelRaw ? (canonicalizeContactChannel(channelRaw)?.display || channelRaw) : "";
+      if (channel && channel !== channelRaw) intro.contactChannel = channel;
       if ((companyId || companyName) && channel && Array.isArray(r.tags)) {
         const businesses = r.tags.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 10);
         for (const business of businesses) {
@@ -1916,6 +1927,35 @@ function normalizeBusiness(input) {
     .replace(/\s+/g, "");
 }
 
+function canonicalizeContactChannel(input) {
+  const raw = String(input || "").trim().replace(/\s+/g, " ");
+  if (!raw) return null;
+  const compact = raw.replace(/\s+/g, "");
+  const lower = compact.toLowerCase();
+
+  if (/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(lower)) {
+    return { kind: "email", display: `email: ${lower}` };
+  }
+
+  const digits = compact.replace(/[^\d]/g, "");
+  if (digits.length >= 7 && digits.length <= 15) {
+    const normalizedDigits = digits.startsWith("86") && digits.length === 13 ? digits.slice(2) : digits;
+    return { kind: "mobile", display: `mobile: ${normalizedDigits}` };
+  }
+
+  const m = lower.match(/^(wechat|wx|weixin)[:：]?(.+)$/i);
+  if (m) {
+    const id = String(m[2] || "").trim().replace(/^@/, "").replace(/\s+/g, "");
+    if (id) return { kind: "wechat", display: `wechat: ${id}` };
+  }
+
+  if (/^[a-z][-_a-z0-9]{4,19}$/i.test(lower)) {
+    return { kind: "wechat", display: `wechat: ${lower}` };
+  }
+
+  return { kind: "other", display: raw };
+}
+
 function normalizeChannel(input) {
   return String(input || "")
     .trim()
@@ -1926,7 +1966,8 @@ function normalizeChannel(input) {
 function upsertSelfClaimedContactsFromUser(u) {
   const companyId = String(u?.companyId || "").trim();
   const companyName = String(u?.companyName || "").trim();
-  const contactChannel = String(u?.contactChannel || "").trim();
+  const contactChannelRaw = String(u?.contactChannel || "").trim();
+  const contactChannel = contactChannelRaw ? (canonicalizeContactChannel(contactChannelRaw)?.display || contactChannelRaw) : "";
   const contactName = String(u?.displayName || "").trim();
   const contactTitle = String(u?.title || "").trim();
   const businesses = Array.isArray(u?.businesses) ? u.businesses.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 20) : [];
