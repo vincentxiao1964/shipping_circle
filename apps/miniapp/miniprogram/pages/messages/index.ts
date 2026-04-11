@@ -2,7 +2,7 @@ import { syncPageI18n, t, type MessageKey } from "../../utils/i18n";
 import { getToken } from "../../services/api";
 import { getUserId } from "../../services/auth";
 import { listNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from "../../services/notifications";
-import { claimRequest } from "../../services/requests";
+import { ackRequestClaim, claimRequest, submitClaimQuote } from "../../services/requests";
 
 const I18N_KEYS = [
   "messages.title",
@@ -18,6 +18,10 @@ const I18N_KEYS = [
   "messages.openRequest",
   "messages.introduceNow",
   "messages.claimNow",
+  "messages.quoteNow",
+  "messages.quoteTitle",
+  "messages.quoteHint",
+  "messages.quoteDone",
   "messages.company",
   "messages.tags",
   "messages.openAdmin",
@@ -180,8 +184,48 @@ Page({
     claimRequest(requestId)
       .then((res) => {
         if (!res) throw new Error("failed");
-        wx.showToast({ title: t("common.ok"), icon: "success" });
-        wx.navigateTo({ url: `/pages/request-detail/index?id=${encodeURIComponent(requestId)}` });
+        return ackRequestClaim(requestId, res.id)
+          .catch(() => false)
+          .then(() => res);
+      })
+      .then((res) => {
+        if (!res) throw new Error("failed");
+        wx.showActionSheet({
+          itemList: [t("messages.quoteNow"), t("messages.openRequest")],
+          success: (r) => {
+            if (r.tapIndex === 0) {
+              wx.showModal({
+                title: t("messages.quoteTitle"),
+                editable: true,
+                placeholderText: t("messages.quoteHint"),
+                success: (mr) => {
+                  if (!mr.confirm) {
+                    wx.navigateTo({ url: `/pages/request-detail/index?id=${encodeURIComponent(requestId)}` });
+                    return;
+                  }
+                  const note = String((mr as any).content || "").trim();
+                  if (!note) {
+                    wx.navigateTo({ url: `/pages/request-detail/index?id=${encodeURIComponent(requestId)}` });
+                    return;
+                  }
+                  submitClaimQuote(requestId, res.id, note)
+                    .then((ok) => {
+                      if (ok) wx.showToast({ title: t("messages.quoteDone"), icon: "success" });
+                      else wx.showToast({ title: t("common.failed"), icon: "none" });
+                    })
+                    .finally(() => {
+                      wx.navigateTo({ url: `/pages/request-detail/index?id=${encodeURIComponent(requestId)}` });
+                    });
+                }
+              });
+              return;
+            }
+            wx.navigateTo({ url: `/pages/request-detail/index?id=${encodeURIComponent(requestId)}` });
+          },
+          fail: () => {
+            wx.navigateTo({ url: `/pages/request-detail/index?id=${encodeURIComponent(requestId)}` });
+          }
+        });
       })
       .catch(() => {
         wx.showToast({ title: t("common.failed"), icon: "none" });
