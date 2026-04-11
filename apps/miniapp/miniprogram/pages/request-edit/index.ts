@@ -1,6 +1,7 @@
 import { getToken } from "../../services/api";
 import { getRequest, listPopularTags, updateRequest } from "../../services/requests";
 import { listCompaniesPage, resolveCompanyByName, type CompanyListItem } from "../../services/companies";
+import { parseContactChannel } from "../../utils/contact-channel";
 import { syncPageI18n, t, type MessageKey } from "../../utils/i18n";
 
 const I18N_KEYS = [
@@ -18,6 +19,8 @@ const I18N_KEYS = [
   "request.ownerContactChannelHint",
   "request.content",
   "request.save",
+  "contact.channelAuto",
+  "contact.channelInvalid",
   "common.ok",
   "common.failed"
 ] as const satisfies readonly MessageKey[];
@@ -176,7 +179,14 @@ Page({
     const title = this.data.title.trim();
     const companyId = this.data.companyId.trim();
     const companyName = this.data.companyName.trim();
-    const ownerContactChannel = this.data.ownerContactChannel.trim();
+    let ownerContactChannel = this.data.ownerContactChannel.trim();
+    const parsed = ownerContactChannel ? parseContactChannel(ownerContactChannel) : null;
+    if (parsed) {
+      ownerContactChannel = parsed.display;
+      this.setData({ ownerContactChannel });
+      if (parsed.kind !== "other") wx.showToast({ title: t("contact.channelAuto", { value: parsed.display }), icon: "none" });
+      else wx.showToast({ title: t("contact.channelInvalid"), icon: "none" });
+    }
     const content = this.data.content.trim();
     const tags = parseBusinesses(this.data.tagsInput);
     if (tags.length === 0) {

@@ -66,6 +66,8 @@ export const zhCN = {
   "contact.invalidMarked": "已标记失效",
   "contact.updateTitle": "更新联系方式",
   "contact.updatePlaceholder": "输入新的联系方式",
+  "contact.channelAuto": "已识别为：{value}",
+  "contact.channelInvalid": "联系方式格式可能不正确，请检查。",
   "contact.invalidReasonTitle": "失效原因",
   "contact.invalidReasonUnreachable": "联系不上",
   "contact.invalidReasonMismatch": "不对口",

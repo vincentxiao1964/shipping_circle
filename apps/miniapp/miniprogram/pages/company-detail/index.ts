@@ -3,6 +3,7 @@ import { confirmContact, invalidateContact, matchContacts, updateContact, type C
 import { listRequestsPage, type RequestListItem } from "../../services/requests";
 import { getToken } from "../../services/api";
 import { toggleCompanyFollow } from "../../services/companies";
+import { parseContactChannel } from "../../utils/contact-channel";
 import { syncPageI18n, t, type MessageKey } from "../../utils/i18n";
 
 const I18N_KEYS = [
@@ -33,6 +34,8 @@ const I18N_KEYS = [
   "contact.invalidMarked",
   "contact.updateTitle",
   "contact.updatePlaceholder",
+  "contact.channelAuto",
+  "contact.channelInvalid",
   "contact.invalidReasonTitle",
   "contact.invalidReasonUnreachable",
   "contact.invalidReasonMismatch",
@@ -127,7 +130,13 @@ Page({
         if (!r.confirm) return;
         const v = String((r as any).content || "").trim();
         if (!v) return;
-        updateContact({ id, contactChannel: v })
+        const parsed = parseContactChannel(v);
+        const finalChannel = parsed ? parsed.display : v;
+        if (parsed) {
+          if (parsed.kind !== "other") wx.showToast({ title: t("contact.channelAuto", { value: parsed.display }), icon: "none" });
+          else wx.showToast({ title: t("contact.channelInvalid"), icon: "none" });
+        }
+        updateContact({ id, contactChannel: finalChannel })
           .then((res) => {
             if (res !== "ok") throw new Error("failed");
             wx.showToast({ title: t("contact.updated"), icon: "success" });

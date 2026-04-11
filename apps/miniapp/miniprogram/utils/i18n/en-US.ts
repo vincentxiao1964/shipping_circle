@@ -66,6 +66,8 @@ export const enUS = {
   "contact.invalidMarked": "Marked invalid",
   "contact.updateTitle": "Update contact",
   "contact.updatePlaceholder": "New contact channel",
+  "contact.channelAuto": "Detected as: {value}",
+  "contact.channelInvalid": "This contact channel may be invalid.",
   "contact.invalidReasonTitle": "Reason",
   "contact.invalidReasonUnreachable": "Unreachable",
   "contact.invalidReasonMismatch": "Mismatch",

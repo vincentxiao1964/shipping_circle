@@ -3,6 +3,7 @@ import { getApiConfig, getToken, setApiBaseUrl } from "../../services/api";
 import { clearUser, getUserId, logoutRemote } from "../../services/auth";
 import { listCompaniesPage, resolveCompanyByName, type CompanyListItem } from "../../services/companies";
 import { getMe, getUserStats, updateMeDisplayName, updateMeProfile } from "../../services/users";
+import { parseContactChannel } from "../../utils/contact-channel";
 
 const I18N_KEYS = [
   "me.title",
@@ -34,6 +35,8 @@ const I18N_KEYS = [
   "me.visibility.mutual",
   "me.visibility.private",
   "me.saveProfile",
+  "contact.channelAuto",
+  "contact.channelInvalid",
   "me.points",
   "me.introSuccess",
   "me.introFail",
@@ -178,7 +181,19 @@ Page({
       .filter(Boolean)
       .slice(0, 20);
     const title = this.data.titleInput.trim();
-    const contactChannel = this.data.contactChannelInput.trim();
+    let contactChannel = this.data.contactChannelInput.trim();
+    const parsed = contactChannel ? parseContactChannel(contactChannel) : null;
+    if (parsed) {
+      contactChannel = parsed.display;
+      if (parsed.kind !== "other") {
+        wx.showToast({ title: t("contact.channelAuto", { value: parsed.display }), icon: "none" });
+      } else {
+        const digits = contactChannel.replace(/[^\d]/g, "");
+        const looksOk = contactChannel.includes(":") || contactChannel.includes("@") || digits.length >= 6 || contactChannel.length >= 6;
+        if (!looksOk) wx.showToast({ title: t("contact.channelInvalid"), icon: "none" });
+      }
+      this.setData({ contactChannelInput: contactChannel });
+    }
     const contactVisibility = this.data.contactVisibility;
     updateMeProfile({ displayName, companyId, companyName, businesses, title, contactChannel, contactVisibility }).then((u) => {
       if (u?.displayName) wx.setStorageSync("sc_displayName", u.displayName);

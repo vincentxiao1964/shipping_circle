@@ -27,13 +27,13 @@ export function parseContactChannel(input: string): ParsedContactChannel | null 
 
   const email = lower.match(/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i);
   if (email) {
-    return { kind: "email", normalized: `email:${lower}`, display: raw };
+    return { kind: "email", normalized: `email:${lower}`, display: `email: ${lower}` };
   }
 
   const mobileDigits = digitsOnly(compact);
   if (mobileDigits.length >= 7 && mobileDigits.length <= 15) {
     const normalizedDigits = mobileDigits.startsWith("86") && mobileDigits.length === 13 ? mobileDigits.slice(2) : mobileDigits;
-    return { kind: "mobile", normalized: `mobile:${normalizedDigits}`, display: raw };
+    return { kind: "mobile", normalized: `mobile:${normalizedDigits}`, display: `mobile: ${normalizedDigits}` };
   }
 
   const wechatExplicit = lower.match(/^(wechat|wx|weixin)[:：]?(.+)$/i);
@@ -50,4 +50,3 @@ export function parseContactChannel(input: string): ParsedContactChannel | null 
 
   return { kind: "other", normalized: raw, display: raw };
 }
-
