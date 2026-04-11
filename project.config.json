@@ -3,6 +3,7 @@
   "projectname": "shipping-circle",
   "description": "Shipping Circle / 海运圈",
   "setting": {
+    "urlCheck": false,
     "es6": true,
     "postcss": true,
     "minified": true,
