@@ -220,7 +220,14 @@ export async function listMyIntroductionsPage(input: { limit: number; cursor?: s
   }
 }
 
-export async function listRequestsPage(input: { limit: number; cursor?: string; mine?: boolean; tag?: string; company?: string }): Promise<PageResult<RequestListItem>> {
+export async function listRequestsPage(input: {
+  limit: number;
+  cursor?: string;
+  mine?: boolean;
+  tag?: string;
+  company?: string;
+  hasPriceHint?: boolean;
+}): Promise<PageResult<RequestListItem>> {
   const remote = await tryListRemotePage(input);
   if (remote) return remote;
   return listLocalPage(input);
@@ -397,13 +404,21 @@ export async function pingIntroducer(requestId: string, toUserId: string): Promi
   }
 }
 
-async function tryListRemotePage(input: { limit: number; cursor?: string; mine?: boolean; tag?: string; company?: string }): Promise<PageResult<RequestListItem> | null> {
+async function tryListRemotePage(input: {
+  limit: number;
+  cursor?: string;
+  mine?: boolean;
+  tag?: string;
+  company?: string;
+  hasPriceHint?: boolean;
+}): Promise<PageResult<RequestListItem> | null> {
   try {
     const qs = buildQuery({
       mine: input.mine ? "1" : "",
       includeClosed: input.mine ? "1" : "",
       tag: input.tag || "",
       company: input.company || "",
+      hasPriceHint: input.hasPriceHint ? "1" : "",
       limit: String(input.limit),
       cursor: input.cursor || ""
     });
@@ -594,13 +609,21 @@ function resolveIntroLocal(input: { introId: string; outcome: "success" | "fail"
   return { pointsAwarded: input.outcome === "success" ? 5 : 1 };
 }
 
-function listLocalPage(input: { limit: number; cursor?: string; mine?: boolean; tag?: string; company?: string }): PageResult<RequestListItem> {
+function listLocalPage(input: {
+  limit: number;
+  cursor?: string;
+  mine?: boolean;
+  tag?: string;
+  company?: string;
+  hasPriceHint?: boolean;
+}): PageResult<RequestListItem> {
   const me = getUserId() ?? "";
   const limit = Math.min(Math.max(1, input.limit), 50);
   const base = input.mine && me ? readAll().filter((r) => r.ownerId === me) : readAll();
   const visible = input.mine ? base : base.filter((r) => r.status !== "closed");
   const byTag = input.tag ? visible.filter((r) => Array.isArray(r.tags) && r.tags.includes(input.tag!)) : visible;
-  const filtered = input.company ? byTag.filter((r) => String(r.companyName || "").toLowerCase().includes(input.company!.toLowerCase())) : byTag;
+  const filteredByCompany = input.company ? byTag.filter((r) => String(r.companyName || "").toLowerCase().includes(input.company!.toLowerCase())) : byTag;
+  const filtered = input.hasPriceHint ? filteredByCompany.filter((r) => Boolean((r as any).priceHint)) : filteredByCompany;
   const all = filtered.sort((a, b) => b.createdAt - a.createdAt);
 
   let startIndex = 0;

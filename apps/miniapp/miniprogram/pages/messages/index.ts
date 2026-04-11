@@ -19,6 +19,7 @@ const I18N_KEYS = [
   "messages.introduceNow",
   "messages.claimNow",
   "messages.quoteNow",
+  "messages.quickQuote",
   "request.priceHint",
   "messages.company",
   "messages.tags",
@@ -35,6 +36,7 @@ type NotificationViewItem = NotificationItem & {
   postId: string;
   fromUserId: string;
   requestId: string;
+  requestTitle: string;
   introId: string;
   canQuickIntroduce: boolean;
   companyName: string;
@@ -125,6 +127,7 @@ Page({
           postId: n.data?.postId || "",
           fromUserId: n.data?.fromUserId || "",
           requestId: n.data?.requestId || "",
+          requestTitle: String(n.data?.requestTitle || ""),
           introId: n.data?.introId || "",
           canQuickIntroduce: n.type === "requestPing" && Boolean(n.data?.requestId) && Boolean(me) && String(n.data?.fromUserId || "") !== me,
           companyName: String(n.data?.companyName || ""),
@@ -214,6 +217,30 @@ Page({
             wx.navigateTo({ url: `/pages/request-detail/index?id=${encodeURIComponent(requestId)}` });
           }
         });
+      })
+      .catch(() => {
+        wx.showToast({ title: t("common.failed"), icon: "none" });
+      });
+  },
+
+  onTapQuickQuote(e: WechatMiniprogram.BaseEvent) {
+    const requestId = (e.currentTarget as any)?.dataset?.requestId as string | undefined;
+    const requestTitle = (e.currentTarget as any)?.dataset?.requestTitle as string | undefined;
+    if (!requestId) return;
+    if (!getToken()) {
+      wx.navigateTo({ url: "/pages/login/index" });
+      return;
+    }
+    claimRequest(requestId)
+      .then((res) => {
+        if (!res) throw new Error("failed");
+        return ackRequestClaim(requestId, res.id)
+          .catch(() => false)
+          .then(() => res);
+      })
+      .then((res) => {
+        const qs = `?requestId=${encodeURIComponent(requestId)}&claimId=${encodeURIComponent(res.id)}&requestTitle=${encodeURIComponent(requestTitle || "")}`;
+        wx.navigateTo({ url: `/pages/claim-quote/index${qs}` });
       })
       .catch(() => {
         wx.showToast({ title: t("common.failed"), icon: "none" });

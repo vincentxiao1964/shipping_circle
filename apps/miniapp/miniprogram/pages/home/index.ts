@@ -9,6 +9,7 @@ const I18N_KEYS = [
   "home.tab.mine",
   "home.filter.all",
   "home.filter.tag",
+  "home.filter.priceHint",
   "home.filter.placeholder",
   "home.filter.custom",
   "request.create",
@@ -32,6 +33,7 @@ Page({
     items: [] as RequestListItem[],
     tab: "square" as "square" | "mine",
     tag: "",
+    hasPriceHint: false,
     cursor: null as string | null,
     hasMore: true,
     loading: false
@@ -83,6 +85,11 @@ Page({
   onTapFilterAll() {
     if (!this.data.tag) return;
     this.setData({ tag: "" });
+    this.loadFirstPage();
+  },
+  onTapFilterPriceHint() {
+    if (this.data.tab !== "square") return;
+    this.setData({ hasPriceHint: !this.data.hasPriceHint });
     this.loadFirstPage();
   },
   onTapFilterTag() {
@@ -147,7 +154,8 @@ Page({
     return listRequestsPage({
       limit: PAGE_LIMIT,
       mine: this.data.tab === "mine",
-      tag: this.data.tab === "square" ? this.data.tag : ""
+      tag: this.data.tab === "square" ? this.data.tag : "",
+      hasPriceHint: this.data.tab === "square" ? this.data.hasPriceHint : false
     })
       .then((page) => {
         this.setData({
@@ -174,7 +182,8 @@ Page({
       limit: PAGE_LIMIT,
       cursor: this.data.cursor ?? undefined,
       mine: this.data.tab === "mine",
-      tag: this.data.tab === "square" ? this.data.tag : ""
+      tag: this.data.tab === "square" ? this.data.tag : "",
+      hasPriceHint: this.data.tab === "square" ? this.data.hasPriceHint : false
     })
       .then((page) => {
         this.setData({

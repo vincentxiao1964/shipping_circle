@@ -57,6 +57,15 @@
       <button size="mini" style="margin-left: 12rpx;" data-request-id="{{item.requestId}}" catchtap="onTapClaimNow">
         {{i18n["messages.claimNow"]}}
       </button>
+      <button
+        size="mini"
+        style="margin-left: 12rpx;"
+        data-request-id="{{item.requestId}}"
+        data-request-title="{{item.requestTitle}}"
+        catchtap="onTapQuickQuote"
+      >
+        {{i18n["messages.quickQuote"]}}
+      </button>
     </view>
     <view class="row" style="margin-top: 12rpx;" wx:if="{{item.isNormalizeReport}}">
       <button size="mini" data-keys="{{item.normalizeKeysParam}}" catchtap="onTapOpenAdmin">{{i18n["messages.openAdmin"]}}</button>

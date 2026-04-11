@@ -1265,6 +1265,7 @@ const server = http.createServer(async (req, res) => {
     const includeClosed = String(url.searchParams.get("includeClosed") || "") === "1";
     const tag = String(url.searchParams.get("tag") || "").trim();
     const company = String(url.searchParams.get("company") || "").trim().toLowerCase();
+    const hasPriceHint = String(url.searchParams.get("hasPriceHint") || "") === "1";
     const cursor = String(url.searchParams.get("cursor") || "");
     const limitRaw = Number(url.searchParams.get("limit") || 20);
     const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(1, limitRaw), 50) : 20;
@@ -1273,9 +1274,16 @@ const server = http.createServer(async (req, res) => {
     const base = mineOnly ? requests.filter((r) => r.ownerId === viewerId) : requests;
     const visible = includeClosed ? base : base.filter((r) => r.status !== "closed");
     const filteredByTag = tag ? visible.filter((r) => Array.isArray(r.tags) && r.tags.includes(tag)) : visible;
-    const filtered = company
+    const filteredByCompany = company
       ? filteredByTag.filter((r) => String(r.companyName || "").toLowerCase().includes(company))
       : filteredByTag;
+    const now = Date.now();
+    const filtered = hasPriceHint
+      ? filteredByCompany.filter((r) => {
+          const hint = r.priceHint || computePriceHintForRequest(r, now);
+          return Boolean(hint && hint.currency && Number(hint.min) > 0 && Number(hint.max) > 0);
+        })
+      : filteredByCompany;
     const list = filtered.slice().sort((a, b) => b.createdAt - a.createdAt);
     const page = paginateByCursor(list, cursor, limit, (x) => x.id);
     const items = page.items.map((r) => ({
@@ -1289,7 +1297,7 @@ const server = http.createServer(async (req, res) => {
       tags: Array.isArray(r.tags) ? r.tags : [],
       status: r.status || "open",
       createdAt: r.createdAt,
-      priceHint: r.priceHint || null,
+      priceHint: r.priceHint || computePriceHintForRequest(r, now),
       introCount: introductions.filter((i) => i.requestId === r.id).length,
       isMine: viewerId ? r.ownerId === viewerId : false
     }));
@@ -1426,7 +1434,7 @@ const server = http.createServer(async (req, res) => {
         tags: Array.isArray(r.tags) ? r.tags : [],
         status: r.status || "open",
         createdAt: r.createdAt,
-        priceHint: r.priceHint || null,
+        priceHint: r.priceHint || computePriceHintForRequest(r, Date.now()),
         quoteRange: computeQuoteRangeForRequestId(r.id),
         introCount: introItems.length,
         isMine

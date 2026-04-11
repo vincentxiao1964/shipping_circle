@@ -113,3 +113,70 @@ test("requests: priceHint uses historical quotes and quoteRange is present on de
     await stopServer(child);
   }
 });
+
+test("requests: hasPriceHint filter works", async () => {
+  const { child, port } = await startServer({ PORT: "0", TOKEN_TTL_MS: "60000", REFRESH_GRACE_MS: "60000" });
+  try {
+    const base = `http://localhost:${port}`;
+
+    const owner = await fetch(`${base}/auth/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "owner_filter" })
+    }).then((r) => r.json());
+    const worker = await fetch(`${base}/auth/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "worker_filter" })
+    }).then((r) => r.json());
+
+    const req1Resp = await fetch(`${base}/requests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${owner.token}` },
+      body: JSON.stringify({ title: "seed", companyName: "Demo Co", content: "x", tags: ["订舱"] })
+    });
+    const req1 = await req1Resp.json();
+    const requestId1 = req1.item.id;
+
+    const claimResp = await fetch(`${base}/requests/${encodeURIComponent(requestId1)}/claim`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${worker.token}` }
+    });
+    const claim = await claimResp.json();
+    const claimId = claim.item.id;
+    await fetch(`${base}/requests/${encodeURIComponent(requestId1)}/claims/${encodeURIComponent(claimId)}/ack`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${worker.token}` }
+    });
+    await fetch(`${base}/requests/${encodeURIComponent(requestId1)}/claims/${encodeURIComponent(claimId)}/quote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${worker.token}` },
+      body: JSON.stringify({ quoteCurrency: "USD", quoteAmount: 2000, quoteAllIn: true, quoteValidDays: 7 })
+    });
+
+    const withHintResp = await fetch(`${base}/requests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${owner.token}` },
+      body: JSON.stringify({ title: "withHint", companyName: "Demo Co", content: "y", tags: ["订舱"] })
+    });
+    const withHint = await withHintResp.json();
+    assert.ok(withHint.item.priceHint);
+
+    const noHintResp = await fetch(`${base}/requests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${owner.token}` },
+      body: JSON.stringify({ title: "noHint", companyName: "Other Co", content: "z", tags: ["报关"] })
+    });
+    const noHint = await noHintResp.json();
+    assert.ok(!noHint.item.priceHint);
+
+    const listResp = await fetch(`${base}/requests?hasPriceHint=1&limit=50`, { headers: { Authorization: `Bearer ${owner.token}` } });
+    assert.equal(listResp.status, 200);
+    const list = await listResp.json();
+    assert.ok(Array.isArray(list.items));
+    assert.ok(list.items.some((x) => x.id === withHint.item.id));
+    assert.ok(!list.items.some((x) => x.id === noHint.item.id));
+  } finally {
+    await stopServer(child);
+  }
+});

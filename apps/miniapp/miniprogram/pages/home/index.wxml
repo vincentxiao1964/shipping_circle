@@ -38,6 +38,9 @@
       <button size="mini" type="{{tag ? 'primary' : 'default'}}" bindtap="onTapFilterTag">
         {{i18n["home.filter.tag"]}} {{tag ? '(' + tag + ')' : ''}}
       </button>
+      <button size="mini" style="margin-left: 12rpx;" type="{{hasPriceHint ? 'primary' : 'default'}}" bindtap="onTapFilterPriceHint">
+        {{i18n["home.filter.priceHint"]}}
+      </button>
     </view>
   </view>
 
