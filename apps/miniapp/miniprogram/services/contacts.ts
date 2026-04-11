@@ -94,3 +94,26 @@ export async function updateContact(input: {
     return "failed";
   }
 }
+
+export type ContactListItem = ContactMatch & { updatedAt: number };
+
+export async function listContactsByCompany(input: {
+  companyId: string;
+  statuses?: string[];
+  limit?: number;
+}): Promise<ContactListItem[]> {
+  const companyId = String(input.companyId || "").trim();
+  const statuses = Array.isArray(input.statuses) ? input.statuses.map((x) => String(x || "").trim()).filter(Boolean) : [];
+  const limit = Math.min(Math.max(1, Number(input.limit ?? 100)), 200);
+  if (!companyId) return [];
+  const qs =
+    `?companyId=${encodeURIComponent(companyId)}` +
+    `&statuses=${encodeURIComponent(statuses.join(",") || "stale,candidate")}` +
+    `&limit=${encodeURIComponent(String(limit))}`;
+  try {
+    const res = await requestJson<{ items: ContactListItem[] }>("GET", `/contacts/list${qs}`);
+    return Array.isArray(res?.items) ? res.items : [];
+  } catch {
+    return [];
+  }
+}

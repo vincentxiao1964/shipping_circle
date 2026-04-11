@@ -57,6 +57,7 @@ const server = http.createServer(async (req, res) => {
         "POST /companies/:id/follow",
         "GET /companies/me/following",
         "GET /contacts/match",
+        "GET /contacts/list?companyId=...",
         "POST /contacts/:id/feedback",
         "PUT /admin/companies/:id/aliases",
         "POST /admin/companies/merge",
@@ -477,12 +478,20 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "GET" && url.pathname === "/contacts/match") {
     const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
-    const companyId = String(url.searchParams.get("companyId") || "").trim();
+    let companyId = String(url.searchParams.get("companyId") || "").trim();
     const companyName = String(url.searchParams.get("company") || "").trim();
     const businessesParam = String(url.searchParams.get("businesses") || url.searchParams.get("business") || "");
     const limitRaw = Number(url.searchParams.get("limit") || 5);
     const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(1, limitRaw), 20) : 5;
     if (!companyId && !companyName) return json(res, 400, { error: "company required" });
+
+    if (!companyId && companyName) {
+      const key = normalizeCompany(companyName);
+      const c =
+        companies.find((x) => normalizeCompany(x?.name || "") === key) ||
+        companies.find((x) => Array.isArray(x?.aliases) && x.aliases.some((a) => normalizeCompany(a) === key));
+      if (c) companyId = c.id;
+    }
 
     const companyKey = companyId ? "" : normalizeCompany(companyName);
     const wanted = businessesParam
@@ -570,6 +579,60 @@ const server = http.createServer(async (req, res) => {
         };
       })
       .sort((a, b) => a.business.localeCompare(b.business));
+
+    return json(res, 200, { items });
+  }
+
+  if (req.method === "GET" && url.pathname === "/contacts/list") {
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!userId) return json(res, 401, { error: "Unauthorized" });
+    const companyId = String(url.searchParams.get("companyId") || "").trim();
+    const statusesParam = String(url.searchParams.get("statuses") || "stale,candidate").trim();
+    const limitRaw = Number(url.searchParams.get("limit") || 100);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(1, limitRaw), 200) : 100;
+    if (!companyId) return json(res, 400, { error: "companyId required" });
+
+    const now = Date.now();
+    const computeStatus = (x) => {
+      const s = String(x?.status || "");
+      if (s === "invalid") return "invalid";
+      const verifiedAt = Number(x?.verifiedAt || 0);
+      if (verifiedAt && now - verifiedAt > CONTACT_STALE_MS) return "stale";
+      if (s === "verified" || verifiedAt) return "verified";
+      if (s) return s;
+      return "candidate";
+    };
+    const wantedStatuses = new Set(
+      statusesParam
+        .split(",")
+        .map((x) => String(x || "").trim())
+        .filter(Boolean)
+        .slice(0, 10)
+    );
+
+    const items = contacts
+      .filter((c) => c && String(c.companyId || "") === companyId)
+      .map((c) => ({ c, status: computeStatus(c) }))
+      .filter((x) => wantedStatuses.has(x.status))
+      .sort((a, b) => (b.c.updatedAt || 0) - (a.c.updatedAt || 0) || (b.c.verifiedAt || 0) - (a.c.verifiedAt || 0))
+      .slice(0, limit)
+      .map((x) => ({
+        id: x.c.id,
+        companyId: x.c.companyId || "",
+        companyName: x.c.companyName || "",
+        business: x.c.business || "",
+        contactName: x.c.contactName || "",
+        contactTitle: x.c.contactTitle || "",
+        contactChannel: x.c.contactChannel || "",
+        clue: x.c.clue || "",
+        status: x.status,
+        verifiedAt: x.c.verifiedAt || 0,
+        successCount: x.c.successCount || 0,
+        failCount: x.c.failCount || 0,
+        lastFailureAt: x.c.lastFailureAt || 0,
+        lastFailureReason: x.c.lastFailureReason || "",
+        updatedAt: x.c.updatedAt || 0
+      }));
 
     return json(res, 200, { items });
   }
@@ -712,8 +775,14 @@ const server = http.createServer(async (req, res) => {
     if (!content) return json(res, 400, { error: "content required" });
 
     const companyFromId = companyId ? companies.find((x) => x.id === companyId) : null;
-    const finalCompanyId = companyFromId ? companyFromId.id : "";
-    const finalCompanyName = companyFromId ? companyFromId.name : companyName;
+    const companyFromName =
+      !companyFromId && companyName
+        ? companies.find((x) => normalizeCompany(x?.name || "") === normalizeCompany(companyName)) ||
+          companies.find((x) => Array.isArray(x?.aliases) && x.aliases.some((a) => normalizeCompany(a) === normalizeCompany(companyName)))
+        : null;
+    const finalCompany = companyFromId || companyFromName;
+    const finalCompanyId = finalCompany ? finalCompany.id : "";
+    const finalCompanyName = finalCompany ? finalCompany.name : companyName;
 
     const reqItem = {
       id: `r_${Date.now()}_${Math.random().toString(16).slice(2)}`,

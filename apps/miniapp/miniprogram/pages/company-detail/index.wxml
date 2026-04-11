@@ -5,6 +5,7 @@
       <view>
         <button size="mini" bindtap="onTapRefresh">{{i18n["common.refresh"]}}</button>
         <button size="mini" style="margin-left: 12rpx;" bindtap="onTapAddAlias">{{i18n["company.addAlias"]}}</button>
+        <button size="mini" style="margin-left: 12rpx;" bindtap="onTapManageContacts">{{i18n["contact.manage"]}}</button>
         <button
           size="mini"
           type="{{item.followedByMe ? 'default' : 'primary'}}"

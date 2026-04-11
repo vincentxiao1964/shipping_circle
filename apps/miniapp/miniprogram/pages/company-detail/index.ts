@@ -24,6 +24,7 @@ const I18N_KEYS = [
   "contact.copied",
   "contact.stale",
   "contact.candidate",
+  "contact.manage",
   "contact.confirm",
   "contact.update",
   "contact.markInvalid",
@@ -166,6 +167,12 @@ Page({
             wx.showToast({ title: t("common.failed"), icon: "none" });
           });
       }
+    });
+  },
+  onTapManageContacts() {
+    if (!this.data.item?.id) return;
+    wx.navigateTo({
+      url: `/pages/contact-manage/index?companyId=${encodeURIComponent(this.data.item.id)}&companyName=${encodeURIComponent(this.data.item.name)}`
     });
   },
   onTapToggleFollow() {

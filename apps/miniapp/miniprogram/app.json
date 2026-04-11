@@ -10,6 +10,7 @@
     "pages/user/index",
     "pages/company-create/index",
     "pages/company-detail/index",
+    "pages/contact-manage/index",
     "pages/company-following/index",
     "pages/request-create/index",
     "pages/request-detail/index",

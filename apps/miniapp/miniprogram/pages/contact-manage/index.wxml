@@ -1,0 +1,34 @@
+<view class="page">
+  <view class="card">
+    <view style="font-weight: 600;">{{companyName}}</view>
+    <view class="muted" style="margin-top: 8rpx;">{{i18n["contact.manageHint"]}}</view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;" wx:if="{{!loading && items.length === 0}}">
+    <view class="muted">{{i18n["contact.manageEmpty"]}}</view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;" wx:for="{{groups}}" wx:for-item="g" wx:key="business">
+    <view style="font-weight: 600;">{{g.business}}</view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{g.items.length === 0}}">-</view>
+    <view class="card" style="margin-top: 12rpx;" wx:for="{{g.items}}" wx:for-item="c" wx:key="id">
+      <view class="row">
+        <view style="font-weight: 600;">{{c.contactName || "-"}}</view>
+        <button size="mini" data-channel="{{c.contactChannel}}" catchtap="onTapCopyContact">{{i18n["contact.copy"]}}</button>
+      </view>
+      <view class="muted" style="margin-top: 8rpx;" wx:if="{{c.status === 'stale'}}">{{i18n["contact.stale"]}}</view>
+      <view class="muted" style="margin-top: 8rpx;" wx:if="{{c.status === 'candidate'}}">{{i18n["contact.candidate"]}}</view>
+      <view class="row" style="margin-top: 8rpx;">
+        <button size="mini" type="primary" data-id="{{c.id}}" catchtap="onTapContactConfirm">{{i18n["contact.confirm"]}}</button>
+        <button size="mini" style="margin-left: 12rpx;" data-id="{{c.id}}" data-channel="{{c.contactChannel}}" catchtap="onTapContactUpdate">
+          {{i18n["contact.update"]}}
+        </button>
+        <button size="mini" style="margin-left: 12rpx;" data-id="{{c.id}}" catchtap="onTapContactInvalid">{{i18n["contact.markInvalid"]}}</button>
+      </view>
+      <view class="muted" style="margin-top: 8rpx;" wx:if="{{c.contactTitle}}">{{c.contactTitle}}</view>
+      <view class="muted" style="margin-top: 8rpx; white-space: pre-wrap;" wx:if="{{c.clue}}">{{c.clue}}</view>
+      <view class="muted" style="margin-top: 8rpx;" wx:if="{{c.lastFailureReason}}">{{c.lastFailureReason}}</view>
+    </view>
+  </view>
+</view>
+
