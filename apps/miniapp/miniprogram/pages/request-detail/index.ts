@@ -3,6 +3,7 @@ import { getUserId } from "../../services/auth";
 import { confirmContact, invalidateContact, matchContacts, updateContact, type ContactMatchGroup } from "../../services/contacts";
 import { getIsFollowing, toggleFollow } from "../../services/follows";
 import { getRecommendedIntroducers, getRequest, pingIntroducer, updateRequest, resolveIntroduction, submitIntroduction, type RequestDetail } from "../../services/requests";
+import { parseContactChannel } from "../../utils/contact-channel";
 import { syncPageI18n, t, type MessageKey } from "../../utils/i18n";
 
 const I18N_KEYS = [
@@ -11,6 +12,8 @@ const I18N_KEYS = [
   "request.introduce",
   "intro.requestHintTitle",
   "intro.requestHintContent",
+  "intro.contactChannelAuto",
+  "intro.contactChannelInvalid",
   "intro.contactName",
   "intro.contactTitle",
   "intro.contactChannel",
@@ -157,7 +160,21 @@ Page({
       )
       .then(() => ask(t("intro.contactName"), t("intro.contactName"), (v) => (contactName = v)))
       .then(() => ask(t("intro.contactTitle"), t("intro.contactTitle"), (v) => (contactTitle = v)))
-      .then(() => ask(t("intro.contactChannel"), t("intro.contactChannel"), (v) => (contactChannel = v)))
+      .then(() =>
+        ask(t("intro.contactChannel"), t("intro.contactChannel"), (v) => {
+          contactChannel = v;
+          const parsed = parseContactChannel(v);
+          if (!parsed) return;
+          contactChannel = parsed.display;
+          if (parsed.kind !== "other") {
+            wx.showToast({ title: t("intro.contactChannelAuto", { value: parsed.display }), icon: "none" });
+          } else {
+            const digits = String(v || "").replace(/[^\d]/g, "");
+            const looksBad = v.includes("@") || digits.length >= 3;
+            if (!looksBad) wx.showToast({ title: t("intro.contactChannelInvalid"), icon: "none" });
+          }
+        })
+      )
       .then(() => ask(t("intro.clue"), t("intro.clue"), (v) => (clue = v)))
       .then(() => {
         if (!contactChannel) {

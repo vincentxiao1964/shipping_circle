@@ -212,6 +212,8 @@ export const zhCN = {
   "intro.clue": "线索补充（可选）",
   "intro.requestHintTitle": "需求提示",
   "intro.requestHintContent": "目标公司：{company}\n业务：{tags}\n请提供你认识的相关负责人联系方式。",
+  "intro.contactChannelAuto": "已识别为：{value}",
+  "intro.contactChannelInvalid": "联系方式格式可能不正确，请检查。",
   "intro.submit": "提交引荐",
   "intro.required": "请至少填写联系方式",
   "intro.failReasonTitle": "未成功原因",

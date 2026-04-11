@@ -212,6 +212,8 @@ export const enUS = {
   "intro.clue": "Extra clue (optional)",
   "intro.requestHintTitle": "Request hint",
   "intro.requestHintContent": "Company: {company}\nTags: {tags}\nPlease provide the owner's contact channel you know.",
+  "intro.contactChannelAuto": "Detected as: {value}",
+  "intro.contactChannelInvalid": "This contact channel may be invalid.",
   "intro.submit": "Submit introduction",
   "intro.required": "Contact channel is required",
   "intro.failReasonTitle": "Reason",
