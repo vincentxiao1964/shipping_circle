@@ -65,6 +65,7 @@ const server = http.createServer(async (req, res) => {
         "POST /contacts/batchUpdate",
         "PUT /admin/companies/:id/aliases",
         "POST /admin/companies/merge",
+        "POST /admin/normalizeChannels",
         "GET /requests",
         "POST /requests",
         "GET /requests/:id",
@@ -512,6 +513,107 @@ const server = http.createServer(async (req, res) => {
     if (idx >= 0) companies.splice(idx, 1);
     markDirty();
     return json(res, 200, { ok: true, sourceId, targetId });
+  }
+
+  if (req.method === "POST" && url.pathname === "/admin/normalizeChannels") {
+    if (!isAdmin(req)) return json(res, 403, { error: "Forbidden" });
+    const body = await readJson(req).catch(() => null);
+    const dryRun = Boolean(body?.dryRun);
+
+    let usersUpdated = 0;
+    let requestsUpdated = 0;
+    let introductionsUpdated = 0;
+    let contactsUpdated = 0;
+
+    const contactPlans = [];
+    for (const u of users.values()) {
+      const raw = String(u?.contactChannel || "").trim();
+      if (!raw) continue;
+      const normalized = canonicalizeContactChannel(raw)?.display || raw;
+      if (normalized !== raw) {
+        usersUpdated += 1;
+        if (!dryRun) u.contactChannel = normalized.slice(0, 200);
+      }
+    }
+
+    for (const r of requests) {
+      const raw = String(r?.ownerContactChannel || "").trim();
+      if (!raw) continue;
+      const normalized = canonicalizeContactChannel(raw)?.display || raw;
+      if (normalized !== raw) {
+        requestsUpdated += 1;
+        if (!dryRun) r.ownerContactChannel = normalized.slice(0, 200);
+      }
+    }
+
+    for (const i of introductions) {
+      const raw = String(i?.contactChannel || "").trim();
+      if (!raw) continue;
+      const normalized = canonicalizeContactChannel(raw)?.display || raw;
+      if (normalized !== raw) {
+        introductionsUpdated += 1;
+        if (!dryRun) i.contactChannel = normalized.slice(0, 200);
+      }
+    }
+
+    const computeKey = (ct, contactChannel) => {
+      const channelKey = normalizeChannel(contactChannel);
+      const businessKey = normalizeBusiness(ct.business || "");
+      if (ct.companyId) return `${ct.companyId}|${businessKey}|${channelKey}`;
+      return `${normalizeCompany(ct.companyName || "")}|${businessKey}|${channelKey}`;
+    };
+
+    for (const c of contacts) {
+      const raw = String(c?.contactChannel || "").trim();
+      const normalized = raw ? canonicalizeContactChannel(raw)?.display || raw : "";
+      const nextKey = normalized ? computeKey(c, normalized) : String(c?.key || "");
+      contactPlans.push({ id: c.id, raw, normalized, nextKey, currentKey: String(c?.key || "") });
+    }
+    const keyToIds = new Map();
+    for (const p of contactPlans) {
+      const k = String(p.nextKey || "");
+      if (!k) continue;
+      const arr = keyToIds.get(k) || [];
+      arr.push(p.id);
+      keyToIds.set(k, arr);
+    }
+    const conflicts = [];
+    for (const [k, ids] of keyToIds.entries()) {
+      if (ids.length > 1) conflicts.push({ key: k, ids });
+    }
+    const conflictKeySet = new Set(conflicts.map((x) => x.key));
+
+    const now = Date.now();
+    for (const p of contactPlans) {
+      if (!p.normalized) continue;
+      if (conflictKeySet.has(p.nextKey)) continue;
+      if (p.normalized !== p.raw || p.nextKey !== p.currentKey) {
+        contactsUpdated += 1;
+        if (!dryRun) {
+          const c = contacts.find((x) => x && x.id === p.id);
+          if (!c) continue;
+          c.contactChannel = p.normalized.slice(0, 200);
+          c.key = p.nextKey;
+          c.updatedAt = now;
+        }
+      }
+    }
+
+    if (!dryRun && (usersUpdated || requestsUpdated || introductionsUpdated || contactsUpdated)) {
+      for (const u of users.values()) upsertSelfClaimedContactsFromUser(u);
+      markDirty();
+    }
+
+    return json(res, 200, {
+      ok: true,
+      dryRun,
+      usersUpdated,
+      requestsUpdated,
+      introductionsUpdated,
+      contactsUpdated,
+      contactConflictCount: conflicts.length,
+      contactConflicts: conflicts.slice(0, 50)
+    });
   }
 
   const companyFollowMatch = url.pathname.match(/^\/companies\/([^/]+)\/follow$/);
