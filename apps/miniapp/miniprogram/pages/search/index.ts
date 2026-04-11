@@ -70,10 +70,11 @@ Page({
     wx.navigateTo({ url: `/pages/company-detail/index?id=${encodeURIComponent(id)}` });
   },
   onTapCreateRequest(e: WechatMiniprogram.BaseEvent) {
+    const companyId = (e.currentTarget as any)?.dataset?.companyId as string | undefined;
     const companyName = (e.currentTarget as any)?.dataset?.companyName as string | undefined;
     const business = (e.currentTarget as any)?.dataset?.business as string | undefined;
     wx.navigateTo({
-      url: `/pages/request-create/index?companyName=${encodeURIComponent(companyName || "")}&business=${encodeURIComponent(business || "")}`
+      url: `/pages/request-create/index?companyId=${encodeURIComponent(companyId || "")}&companyName=${encodeURIComponent(companyName || "")}&business=${encodeURIComponent(business || "")}`
     });
   },
   onTapFollowCompany(e: WechatMiniprogram.BaseEvent) {

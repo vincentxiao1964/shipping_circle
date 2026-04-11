@@ -22,6 +22,7 @@ Page({
     localeVersion: 0,
     i18n: {},
     title: "",
+    companyId: "",
     companyName: "",
     tagsInput: "",
     businesses: [] as string[],
@@ -30,10 +31,12 @@ Page({
   },
   onLoad(query: Record<string, string | undefined>) {
     syncPageI18n(this, I18N_KEYS);
+    const companyId = query.companyId ? String(query.companyId) : "";
     const companyName = query.companyName ? String(query.companyName) : "";
     const business = query.business ? String(query.business) : "";
     const tagsInput = business ? business : this.data.tagsInput;
     this.setData({
+      companyId,
       companyName,
       tagsInput,
       businesses: parseBusinesses(tagsInput)
@@ -48,7 +51,7 @@ Page({
     this.setData({ title: e.detail.value });
   },
   onInputCompanyName(e: WechatMiniprogram.Input) {
-    this.setData({ companyName: e.detail.value });
+    this.setData({ companyName: e.detail.value, companyId: "" });
   },
   onInputContent(e: WechatMiniprogram.Input) {
     this.setData({ content: e.detail.value });
@@ -108,6 +111,7 @@ Page({
       return;
     }
     const title = this.data.title.trim();
+    const companyId = this.data.companyId.trim();
     const companyName = this.data.companyName.trim();
     const content = this.data.content.trim();
     const tags = parseBusinesses(this.data.tagsInput);
@@ -120,7 +124,7 @@ Page({
       return;
     }
     this.setData({ loading: true });
-    createRequest({ title, companyName, content, tags })
+    createRequest({ title, companyId, companyName, content, tags })
       .then((item) => {
         wx.showToast({ title: t("common.ok"), icon: "success" });
         wx.redirectTo({ url: `/pages/request-detail/index?id=${encodeURIComponent(item.id)}` });

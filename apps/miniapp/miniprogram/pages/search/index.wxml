@@ -50,6 +50,7 @@
         <button
           size="mini"
           style="margin-right: 12rpx; margin-top: 8rpx;"
+          data-company-id="{{item.id}}"
           data-company-name="{{item.name}}"
           data-business="{{r.business}}"
           catchtap="onTapCreateRequest"

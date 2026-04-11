@@ -197,7 +197,7 @@ Page({
       });
   },
   loadContacts(item: RequestDetail | null) {
-    if (!item?.companyName) {
+    if (!item?.companyId && !item?.companyName) {
       this.setData({ contactGroups: [] });
       return Promise.resolve();
     }
@@ -208,7 +208,7 @@ Page({
     if (this.data.contactLoading) return Promise.resolve();
     this.setData({ contactLoading: true });
     const businesses = Array.isArray(item.tags) ? item.tags.map((x) => String(x || "").trim()).filter(Boolean) : [];
-    return matchContacts({ companyName: item.companyName, businesses, limit: 5 })
+    return matchContacts({ companyId: item.companyId || "", companyName: item.companyName || "", businesses, limit: 5 })
       .then((groups) => {
         this.setData({ contactGroups: groups });
       })

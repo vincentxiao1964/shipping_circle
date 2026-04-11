@@ -6,6 +6,7 @@ export type RequestListItem = {
   ownerId: string;
   ownerDisplayName?: string;
   title: string;
+  companyId?: string;
   companyName?: string;
   content: string;
   tags?: string[];
@@ -70,7 +71,13 @@ export async function getRequest(id: string): Promise<RequestDetail | null> {
   return getLocal(id);
 }
 
-export async function createRequest(input: { title: string; companyName: string; content: string; tags: string[] }): Promise<RequestListItem> {
+export async function createRequest(input: {
+  title: string;
+  companyId?: string;
+  companyName: string;
+  content: string;
+  tags: string[];
+}): Promise<RequestListItem> {
   try {
     const res = await requestJson<{ item: RequestListItem }>("POST", "/requests", input);
     return res.item;
@@ -82,6 +89,7 @@ export async function createRequest(input: { title: string; companyName: string;
 export async function updateRequest(input: {
   id: string;
   title: string;
+  companyId?: string;
   companyName: string;
   content: string;
   tags: string[];
@@ -90,6 +98,7 @@ export async function updateRequest(input: {
   try {
     const res = await requestJson<{ item: RequestListItem }>("PUT", `/requests/${encodeURIComponent(input.id)}`, {
       title: input.title,
+      companyId: input.companyId || "",
       companyName: input.companyName,
       content: input.content,
       tags: input.tags,
@@ -211,6 +220,7 @@ type LocalRequest = {
   id: string;
   ownerId: string;
   title: string;
+  companyId?: string;
   companyName?: string;
   content: string;
   tags?: string[];
@@ -221,13 +231,14 @@ type LocalRequest = {
 
 const STORAGE_KEY = "sc_requests_v1";
 
-function createLocal(input: { title: string; companyName: string; content: string; tags: string[] }): RequestListItem {
+function createLocal(input: { title: string; companyId?: string; companyName: string; content: string; tags: string[] }): RequestListItem {
   const me = getUserId() ?? "u_local";
   const all = readAll();
   const reqItem: LocalRequest = {
     id: `r_local_${Date.now()}_${Math.random().toString(16).slice(2)}`,
     ownerId: me,
     title: input.title || "Untitled",
+    companyId: input.companyId ? String(input.companyId) : "",
     companyName: input.companyName,
     content: input.content,
     tags: input.tags,
@@ -242,6 +253,7 @@ function createLocal(input: { title: string; companyName: string; content: strin
     ownerId: reqItem.ownerId,
     ownerDisplayName: reqItem.ownerId,
     title: reqItem.title,
+    companyId: reqItem.companyId || "",
     companyName: reqItem.companyName || "",
     content: reqItem.content,
     tags: Array.isArray(reqItem.tags) ? reqItem.tags : [],
@@ -255,6 +267,7 @@ function createLocal(input: { title: string; companyName: string; content: strin
 function updateLocal(input: {
   id: string;
   title: string;
+  companyId?: string;
   companyName: string;
   content: string;
   tags: string[];
@@ -266,6 +279,7 @@ function updateLocal(input: {
   if (!r) throw new Error("Not Found");
   if (me && r.ownerId !== me) throw new Error("Forbidden");
   r.title = input.title || r.title;
+  r.companyId = input.companyId ? String(input.companyId) : "";
   r.companyName = input.companyName;
   r.content = input.content || r.content;
   r.tags = input.tags;
@@ -276,6 +290,7 @@ function updateLocal(input: {
     ownerId: r.ownerId,
     ownerDisplayName: r.ownerId,
     title: r.title,
+    companyId: r.companyId || "",
     companyName: r.companyName || "",
     content: r.content,
     tags: Array.isArray(r.tags) ? r.tags : [],
@@ -374,6 +389,7 @@ function listLocalPage(input: { limit: number; cursor?: string; mine?: boolean; 
     ownerId: r.ownerId,
     ownerDisplayName: r.ownerId,
     title: r.title,
+    companyId: r.companyId || "",
     companyName: r.companyName || "",
     content: r.content,
     tags: Array.isArray(r.tags) ? r.tags : [],
@@ -394,6 +410,7 @@ function getLocal(id: string): RequestDetail | null {
     ownerId: r.ownerId,
     ownerDisplayName: r.ownerId,
     title: r.title,
+    companyId: r.companyId || "",
     companyName: r.companyName || "",
     content: r.content,
     tags: Array.isArray(r.tags) ? r.tags : [],

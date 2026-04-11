@@ -60,7 +60,7 @@ Page({
     const business = (e.currentTarget as any)?.dataset?.business as string | undefined;
     if (!this.data.item) return;
     wx.navigateTo({
-      url: `/pages/request-create/index?companyName=${encodeURIComponent(this.data.item.name)}&business=${encodeURIComponent(business || "")}`
+      url: `/pages/request-create/index?companyId=${encodeURIComponent(this.data.item.id)}&companyName=${encodeURIComponent(this.data.item.name)}&business=${encodeURIComponent(business || "")}`
     });
   },
   onTapCopyContact(e: WechatMiniprogram.BaseEvent) {
@@ -136,7 +136,7 @@ Page({
     if (this.data.contactLoading) return Promise.resolve();
     this.setData({ contactLoading: true });
     const businesses = Array.isArray(item.roles) ? item.roles.map((r: any) => String(r?.business || "").trim()).filter(Boolean) : [];
-    return matchContacts({ companyName: item.name, businesses, limit: 5 })
+    return matchContacts({ companyId: item.id, companyName: item.name, businesses, limit: 5 })
       .then((groups) => {
         this.setData({ contactGroups: groups });
       })

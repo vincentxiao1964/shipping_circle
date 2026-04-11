@@ -17,13 +17,20 @@ export type ContactMatchGroup = {
   contacts: ContactMatch[];
 };
 
-export async function matchContacts(input: { companyName: string; businesses?: string[]; limit?: number }): Promise<ContactMatchGroup[]> {
+export async function matchContacts(input: {
+  companyId?: string;
+  companyName: string;
+  businesses?: string[];
+  limit?: number;
+}): Promise<ContactMatchGroup[]> {
+  const companyId = String(input.companyId || "").trim();
   const companyName = String(input.companyName || "").trim();
   const businesses = Array.isArray(input.businesses) ? input.businesses.map((x) => String(x || "").trim()).filter(Boolean) : [];
   const limit = Math.min(Math.max(1, Number(input.limit ?? 5)), 20);
-  if (!companyName) return [];
+  if (!companyId && !companyName) return [];
   const qs =
-    `?company=${encodeURIComponent(companyName)}` +
+    `?companyId=${encodeURIComponent(companyId)}` +
+    `&company=${encodeURIComponent(companyName)}` +
     `&businesses=${encodeURIComponent(businesses.join(","))}` +
     `&limit=${encodeURIComponent(String(limit))}`;
   try {
@@ -33,4 +40,3 @@ export async function matchContacts(input: { companyName: string; businesses?: s
     return [];
   }
 }
-

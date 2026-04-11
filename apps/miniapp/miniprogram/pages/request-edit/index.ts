@@ -23,6 +23,7 @@ Page({
     i18n: {},
     id: "",
     title: "",
+    companyId: "",
     companyName: "",
     tagsInput: "",
     businesses: [] as string[],
@@ -48,7 +49,7 @@ Page({
     this.setData({ title: e.detail.value });
   },
   onInputCompanyName(e: WechatMiniprogram.Input) {
-    this.setData({ companyName: e.detail.value });
+    this.setData({ companyName: e.detail.value, companyId: "" });
   },
   onInputTags(e: WechatMiniprogram.Input) {
     const tagsInput = e.detail.value;
@@ -108,6 +109,7 @@ Page({
       return;
     }
     const title = this.data.title.trim();
+    const companyId = this.data.companyId.trim();
     const companyName = this.data.companyName.trim();
     const content = this.data.content.trim();
     const tags = parseBusinesses(this.data.tagsInput);
@@ -120,7 +122,7 @@ Page({
       return;
     }
     this.setData({ loading: true });
-    updateRequest({ id: this.data.id, title, companyName, content, tags, status: this.data.status })
+    updateRequest({ id: this.data.id, title, companyId, companyName, content, tags, status: this.data.status })
       .then(() => {
         wx.showToast({ title: t("common.ok"), icon: "success" });
         wx.redirectTo({ url: `/pages/request-detail/index?id=${encodeURIComponent(this.data.id)}` });
@@ -141,6 +143,7 @@ Page({
         if (!r) return;
         this.setData({
           title: r.title,
+          companyId: r.companyId || "",
           companyName: r.companyName || "",
           content: r.content,
           tagsInput: Array.isArray(r.tags) ? r.tags.join(", ") : "",
