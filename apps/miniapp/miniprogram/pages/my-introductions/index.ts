@@ -2,7 +2,19 @@ import { getToken } from "../../services/api";
 import { listMyIntroductionsPage, type MyIntroductionListItem } from "../../services/requests";
 import { syncPageI18n, t, type MessageKey } from "../../utils/i18n";
 
-const I18N_KEYS = ["intro.mineTitle", "intro.empty", "request.resolveSuccess", "request.resolveFail", "common.failed", "common.noMore", "common.refresh"] as const satisfies readonly MessageKey[];
+const I18N_KEYS = [
+  "intro.mineTitle",
+  "intro.empty",
+  "intro.contactName",
+  "intro.contactTitle",
+  "intro.contactChannel",
+  "intro.clue",
+  "request.resolveSuccess",
+  "request.resolveFail",
+  "common.failed",
+  "common.noMore",
+  "common.refresh"
+] as const satisfies readonly MessageKey[];
 
 const PAGE_LIMIT = 20;
 
@@ -85,4 +97,3 @@ Page({
       });
   }
 });
-

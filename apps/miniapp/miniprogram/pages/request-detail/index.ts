@@ -7,6 +7,12 @@ const I18N_KEYS = [
   "request.detail",
   "request.introductions",
   "request.introduce",
+  "intro.contactName",
+  "intro.contactTitle",
+  "intro.contactChannel",
+  "intro.clue",
+  "intro.submit",
+  "intro.required",
   "request.resolveSuccess",
   "request.resolveFail",
   "request.myRequest",
@@ -60,15 +66,44 @@ Page({
       wx.navigateTo({ url: "/pages/login/index" });
       return;
     }
-    wx.showModal({
-      title: t("request.introduce"),
-      editable: true,
-      placeholderText: t("request.introduce"),
-      success: (r) => {
-        if (!r.confirm) return;
-        const note = String((r as any).content || "").trim();
-        if (!note) return;
-        submitIntroduction({ requestId: this.data.item!.id, note })
+    let contactName = "";
+    let contactTitle = "";
+    let contactChannel = "";
+    let clue = "";
+
+    const ask = (title: string, placeholderText: string, valueSetter: (v: string) => void) =>
+      new Promise<void>((resolve) => {
+        wx.showModal({
+          title,
+          editable: true,
+          placeholderText,
+          success: (r) => {
+            if (!r.confirm) return resolve();
+            const v = String((r as any).content || "").trim();
+            valueSetter(v);
+            resolve();
+          },
+          fail: () => resolve()
+        });
+      });
+
+    Promise.resolve()
+      .then(() => ask(t("intro.contactName"), t("intro.contactName"), (v) => (contactName = v)))
+      .then(() => ask(t("intro.contactTitle"), t("intro.contactTitle"), (v) => (contactTitle = v)))
+      .then(() => ask(t("intro.contactChannel"), t("intro.contactChannel"), (v) => (contactChannel = v)))
+      .then(() => ask(t("intro.clue"), t("intro.clue"), (v) => (clue = v)))
+      .then(() => {
+        if (!contactChannel) {
+          wx.showToast({ title: t("intro.required"), icon: "none" });
+          return;
+        }
+        return submitIntroduction({
+          requestId: this.data.item!.id,
+          contactName,
+          contactTitle,
+          contactChannel,
+          clue
+        })
           .then(() => {
             wx.showToast({ title: t("common.ok"), icon: "success" });
             this.load();
@@ -76,8 +111,7 @@ Page({
           .catch(() => {
             wx.showToast({ title: t("common.failed"), icon: "none" });
           });
-      }
-    });
+      });
   },
   onTapEdit() {
     if (!this.data.item?.isMine) return;

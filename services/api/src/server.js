@@ -454,6 +454,10 @@ const server = http.createServer(async (req, res) => {
         introducerId: i.introducerId,
         introducerDisplayName: ensureUser(i.introducerId).displayName,
         note: i.note,
+        contactName: i.contactName || "",
+        contactTitle: i.contactTitle || "",
+        contactChannel: i.contactChannel || "",
+        clue: i.clue || "",
         createdAt: i.createdAt,
         resolvedAt: i.resolvedAt,
         outcome: i.outcome
@@ -534,7 +538,19 @@ const server = http.createServer(async (req, res) => {
     ensureUserStats(r.ownerId);
 
     const body = await readJson(req).catch(() => null);
-    const note = typeof body?.note === "string" ? body.note.trim() : "";
+    const contactName = typeof body?.contactName === "string" ? body.contactName.trim() : "";
+    const contactTitle = typeof body?.contactTitle === "string" ? body.contactTitle.trim() : "";
+    const contactChannel = typeof body?.contactChannel === "string" ? body.contactChannel.trim() : "";
+    const clue = typeof body?.clue === "string" ? body.clue.trim() : "";
+    let note = typeof body?.note === "string" ? body.note.trim() : "";
+    if (!note) {
+      const parts = [];
+      if (contactName) parts.push(`联系人：${contactName}`);
+      if (contactTitle) parts.push(`岗位/部门：${contactTitle}`);
+      if (contactChannel) parts.push(`联系方式：${contactChannel}`);
+      if (clue) parts.push(`线索：${clue}`);
+      note = parts.join("\n");
+    }
     if (!note) return json(res, 400, { error: "note required" });
 
     const intro = {
@@ -542,6 +558,10 @@ const server = http.createServer(async (req, res) => {
       requestId: r.id,
       introducerId: userId,
       note: note.slice(0, 2000),
+      contactName: contactName.slice(0, 80),
+      contactTitle: contactTitle.slice(0, 120),
+      contactChannel: contactChannel.slice(0, 200),
+      clue: clue.slice(0, 1000),
       createdAt: Date.now(),
       resolvedAt: null,
       outcome: null
@@ -566,6 +586,10 @@ const server = http.createServer(async (req, res) => {
         introducerId: intro.introducerId,
         introducerDisplayName: ensureUser(intro.introducerId).displayName,
         note: intro.note,
+        contactName: intro.contactName || "",
+        contactTitle: intro.contactTitle || "",
+        contactChannel: intro.contactChannel || "",
+        clue: intro.clue || "",
         createdAt: intro.createdAt,
         resolvedAt: null,
         outcome: null
@@ -596,6 +620,10 @@ const server = http.createServer(async (req, res) => {
         requestOwnerId: r ? r.ownerId : "",
         requestOwnerDisplayName: r ? ensureUser(r.ownerId).displayName : "",
         note: i.note,
+        contactName: i.contactName || "",
+        contactTitle: i.contactTitle || "",
+        contactChannel: i.contactChannel || "",
+        clue: i.clue || "",
         createdAt: i.createdAt,
         resolvedAt: i.resolvedAt,
         outcome: i.outcome,
@@ -652,6 +680,10 @@ const server = http.createServer(async (req, res) => {
         introducerId: intro.introducerId,
         introducerDisplayName: ensureUser(intro.introducerId).displayName,
         note: intro.note,
+        contactName: intro.contactName || "",
+        contactTitle: intro.contactTitle || "",
+        contactChannel: intro.contactChannel || "",
+        clue: intro.clue || "",
         createdAt: intro.createdAt,
         resolvedAt: intro.resolvedAt,
         outcome: intro.outcome,

@@ -21,6 +21,18 @@
     <view style="font-weight: 600;">{{item.requestTitle || item.requestId}}</view>
     <view class="muted" style="margin-top: 8rpx;">{{item.requestOwnerDisplayName || item.requestOwnerId}}</view>
     <view class="muted" style="margin-top: 8rpx; white-space: pre-wrap;">{{item.note}}</view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.contactChannel}}">
+      {{i18n["intro.contactChannel"]}}：{{item.contactChannel}}
+    </view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.contactName}}">
+      {{i18n["intro.contactName"]}}：{{item.contactName}}
+    </view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.contactTitle}}">
+      {{i18n["intro.contactTitle"]}}：{{item.contactTitle}}
+    </view>
+    <view class="muted" style="margin-top: 8rpx; white-space: pre-wrap;" wx:if="{{item.clue}}">
+      {{i18n["intro.clue"]}}：{{item.clue}}
+    </view>
     <view class="muted" style="margin-top: 8rpx;">
       {{item.outcome ? (item.outcome === 'success' ? i18n['request.resolveSuccess'] : i18n['request.resolveFail']) : "-"}}
     </view>

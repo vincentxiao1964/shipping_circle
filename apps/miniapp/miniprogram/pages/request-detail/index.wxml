@@ -54,6 +54,18 @@
         </view>
       </view>
       <view class="muted" style="margin-top: 8rpx; white-space: pre-wrap;">{{intro.note}}</view>
+      <view class="muted" style="margin-top: 8rpx;" wx:if="{{intro.contactChannel}}">
+        {{i18n["intro.contactChannel"]}}：{{intro.contactChannel}}
+      </view>
+      <view class="muted" style="margin-top: 8rpx;" wx:if="{{intro.contactName}}">
+        {{i18n["intro.contactName"]}}：{{intro.contactName}}
+      </view>
+      <view class="muted" style="margin-top: 8rpx;" wx:if="{{intro.contactTitle}}">
+        {{i18n["intro.contactTitle"]}}：{{intro.contactTitle}}
+      </view>
+      <view class="muted" style="margin-top: 8rpx; white-space: pre-wrap;" wx:if="{{intro.clue}}">
+        {{i18n["intro.clue"]}}：{{intro.clue}}
+      </view>
       <view class="row" style="margin-top: 12rpx;" wx:if="{{item.isMine && !intro.resolvedAt}}">
         <button
           size="mini"

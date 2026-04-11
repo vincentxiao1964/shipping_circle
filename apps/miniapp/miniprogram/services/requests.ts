@@ -21,6 +21,10 @@ export type IntroductionItem = {
   introducerId: string;
   introducerDisplayName?: string;
   note: string;
+  contactName?: string;
+  contactTitle?: string;
+  contactChannel?: string;
+  clue?: string;
   createdAt: number;
   resolvedAt: number | null;
   outcome: "success" | "fail" | null;
@@ -48,6 +52,10 @@ export type MyIntroductionListItem = {
   requestOwnerId: string;
   requestOwnerDisplayName: string;
   note: string;
+  contactName?: string;
+  contactTitle?: string;
+  contactChannel?: string;
+  clue?: string;
   createdAt: number;
   resolvedAt: number | null;
   outcome: "success" | "fail" | null;
@@ -93,12 +101,25 @@ export async function updateRequest(input: {
   }
 }
 
-export async function submitIntroduction(input: { requestId: string; note: string }): Promise<IntroductionItem> {
+export async function submitIntroduction(input: {
+  requestId: string;
+  note?: string;
+  contactName?: string;
+  contactTitle?: string;
+  contactChannel?: string;
+  clue?: string;
+}): Promise<IntroductionItem> {
   try {
     const res = await requestJson<{ item: IntroductionItem }>(
       "POST",
       `/requests/${encodeURIComponent(input.requestId)}/introductions`,
-      { note: input.note }
+      {
+        note: input.note || "",
+        contactName: input.contactName || "",
+        contactTitle: input.contactTitle || "",
+        contactChannel: input.contactChannel || "",
+        clue: input.clue || ""
+      }
     );
     return res.item;
   } catch {
@@ -265,7 +286,14 @@ function updateLocal(input: {
   };
 }
 
-function submitIntroLocal(input: { requestId: string; note: string }): IntroductionItem {
+function submitIntroLocal(input: {
+  requestId: string;
+  note?: string;
+  contactName?: string;
+  contactTitle?: string;
+  contactChannel?: string;
+  clue?: string;
+}): IntroductionItem {
   const me = getUserId() ?? "u_local";
   const all = readAll();
   const r = all.find((x) => x.id === input.requestId);
@@ -273,12 +301,18 @@ function submitIntroLocal(input: { requestId: string; note: string }): Introduct
   if (r.status === "closed") throw new Error("request closed");
   if (r.ownerId === me) throw new Error("cannot introduce for own request");
   if (r.introductions.some((i) => i.introducerId === me)) throw new Error("already introduced");
+  const note = String(input.note || "").trim() || buildIntroNote(input);
+  if (!note) throw new Error("note required");
   const intro: IntroductionItem = {
     id: `i_local_${Date.now()}_${Math.random().toString(16).slice(2)}`,
     requestId: r.id,
     introducerId: me,
     introducerDisplayName: me,
-    note: input.note,
+    note,
+    contactName: String(input.contactName || "").trim(),
+    contactTitle: String(input.contactTitle || "").trim(),
+    contactChannel: String(input.contactChannel || "").trim(),
+    clue: String(input.clue || "").trim(),
     createdAt: Date.now(),
     resolvedAt: null,
     outcome: null
@@ -286,6 +320,19 @@ function submitIntroLocal(input: { requestId: string; note: string }): Introduct
   r.introductions.unshift(intro);
   writeAll(all);
   return intro;
+}
+
+function buildIntroNote(input: { contactName?: string; contactTitle?: string; contactChannel?: string; clue?: string }) {
+  const contactName = String(input.contactName || "").trim();
+  const contactTitle = String(input.contactTitle || "").trim();
+  const contactChannel = String(input.contactChannel || "").trim();
+  const clue = String(input.clue || "").trim();
+  const parts: string[] = [];
+  if (contactName) parts.push(`联系人：${contactName}`);
+  if (contactTitle) parts.push(`岗位/部门：${contactTitle}`);
+  if (contactChannel) parts.push(`联系方式：${contactChannel}`);
+  if (clue) parts.push(`线索：${clue}`);
+  return parts.join("\n");
 }
 
 function resolveIntroLocal(input: { introId: string; outcome: "success" | "fail" }): { pointsAwarded: number } | null {
