@@ -93,6 +93,8 @@ const I18N_KEYS = [
   "request.claimQuoteDone",
   "request.quoteNoteTitle",
   "request.quoteNoteHint",
+  "request.priceHint",
+  "request.quoteRange",
   "request.claimComplete",
   "request.claimComplain",
   "request.complainReasonTitle",
@@ -540,6 +542,16 @@ Page({
     if (status === "complained") return t("request.claimStatusComplained");
     if (status === "expired") return t("request.claimStatusExpired");
     return t("request.claimStatusClaimed");
+  },
+  formatMoneyRange(range: any) {
+    if (!range) return "";
+    const currency = String(range.currency || "").trim();
+    const min = Number(range.min || 0);
+    const max = Number(range.max || 0);
+    const count = Number(range.count || 0);
+    if (!currency || !Number.isFinite(min) || !Number.isFinite(max) || min <= 0 || max <= 0) return "";
+    const text = min === max ? `${currency} ${min}` : `${currency} ${min}-${max}`;
+    return count > 0 ? `${text} (n=${count})` : text;
   },
   load() {
     if (this.data.loading) return;

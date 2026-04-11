@@ -13,6 +13,8 @@ export type RequestListItem = {
   tags?: string[];
   status?: "open" | "closed";
   createdAt: number;
+  priceHint?: { currency: string; min: number; max: number; count: number; updatedAt?: number } | null;
+  quoteRange?: { currency: string; min: number; max: number; count: number } | null;
   introCount: number;
   isMine: boolean;
 };

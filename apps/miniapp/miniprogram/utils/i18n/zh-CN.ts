@@ -257,6 +257,8 @@ export const zhCN = {
   "request.resolveSuccess": "成功 +5",
   "request.resolveFail": "未成功 +1",
   "request.myRequest": "我的需求",
+  "request.priceHint": "参考价",
+  "request.quoteRange": "当前报价",
   "request.edit": "编辑",
   "request.close": "关闭",
   "request.reopen": "重新打开",

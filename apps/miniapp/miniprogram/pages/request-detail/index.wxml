@@ -19,6 +19,12 @@
       {{i18n["request.closed"]}}
     </view>
     <view style="margin-top: 12rpx; white-space: pre-wrap;">{{item.content}}</view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.priceHint}}">
+      {{i18n["request.priceHint"]}}：{{formatMoneyRange(item.priceHint)}}
+    </view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.quoteRange}}">
+      {{i18n["request.quoteRange"]}}：{{formatMoneyRange(item.quoteRange)}}
+    </view>
     <view class="row" style="margin-top: 12rpx;">
       <view class="muted" wx:if="{{item.isMine}}">{{i18n["request.myRequest"]}}</view>
       <view />

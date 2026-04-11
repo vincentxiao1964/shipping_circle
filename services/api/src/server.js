@@ -163,6 +163,84 @@ function recommendIntroducersForRequest(input) {
     .slice(0, limit);
 }
 
+function parseQuoteFromText(note) {
+  const raw = String(note || "").trim();
+  if (!raw) return { currency: "", amount: 0, allIn: false, validDays: 0 };
+  const lower = raw.toLowerCase();
+  const allIn = lower.includes("all-in") || lower.includes("all in") || lower.includes("allin") || lower.includes("全包") || lower.includes("全含");
+  let currency = "";
+  if (/\busd\b/i.test(raw) || /美金/.test(raw) || /\$/.test(raw)) currency = "USD";
+  else if (/\bcny\b/i.test(raw) || /人民币|rmb/.test(raw) || /¥/.test(raw)) currency = "CNY";
+  else if (/\beur\b/i.test(raw) || /欧元/.test(raw) || /€/.test(raw)) currency = "EUR";
+
+  let amount = 0;
+  const numMatch = raw.match(/(?:usd|cny|rmb|eur|\$|¥|€)\s*([0-9][0-9,]*(?:\.[0-9]+)?)/i) || raw.match(/([0-9][0-9,]*(?:\.[0-9]+)?)\s*(?:usd|cny|rmb|eur)/i);
+  if (numMatch && numMatch[1]) {
+    const v = Number(String(numMatch[1]).replace(/,/g, ""));
+    if (Number.isFinite(v) && v > 0) amount = v;
+  }
+
+  let validDays = 0;
+  const vd = raw.match(/valid\s*(\d+)\s*d/i) || raw.match(/有效\s*(\d+)\s*天/);
+  if (vd && vd[1]) {
+    const n = Number(vd[1]);
+    if (Number.isFinite(n) && n > 0) validDays = Math.min(365, Math.max(1, n));
+  }
+
+  return { currency, amount, allIn, validDays };
+}
+
+function computeQuoteRangeForRequestId(requestId) {
+  const rid = String(requestId || "").trim();
+  if (!rid) return null;
+  const quotes = requestClaims
+    .filter((c) => c && c.requestId === rid && Number(c.quoteSubmittedAt || 0) > 0 && Number(c.quoteAmount || 0) > 0)
+    .map((c) => ({ currency: String(c.quoteCurrency || ""), amount: Number(c.quoteAmount || 0) }))
+    .filter((x) => x.amount > 0 && x.currency);
+  if (quotes.length === 0) return null;
+  const byCurrency = new Map();
+  for (const q of quotes) byCurrency.set(q.currency, (byCurrency.get(q.currency) || 0) + 1);
+  const currency = Array.from(byCurrency.entries()).sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))[0]?.[0] || quotes[0].currency;
+  const values = quotes.filter((q) => q.currency === currency).map((q) => q.amount);
+  values.sort((a, b) => a - b);
+  return { currency, min: values[0], max: values[values.length - 1], count: values.length };
+}
+
+function computePriceHintForRequest(r, now) {
+  const ts = typeof now === "number" ? now : Date.now();
+  const tagSet = new Set((Array.isArray(r.tags) ? r.tags : []).map((x) => String(x || "").trim()).filter(Boolean).slice(0, 10));
+  if (tagSet.size === 0) return null;
+  const companyId = String(r.companyId || "").trim();
+  const companyKey = companyId ? "" : normalizeCompany(r.companyName || "");
+
+  const RECENT_MS = 120 * 24 * 60 * 60 * 1000;
+  const candidates = [];
+  for (const c of requestClaims) {
+    if (!c) continue;
+    if (!Number(c.quoteSubmittedAt || 0) || ts - Number(c.quoteSubmittedAt || 0) > RECENT_MS) continue;
+    const amount = Number(c.quoteAmount || 0);
+    const currency = String(c.quoteCurrency || "");
+    if (!currency || !Number.isFinite(amount) || amount <= 0) continue;
+    const rr = requests.find((x) => x.id === c.requestId);
+    if (!rr) continue;
+    const hasTag = Array.isArray(rr.tags) && rr.tags.some((t) => tagSet.has(String(t || "").trim()));
+    if (!hasTag) continue;
+    if (companyId) {
+      if (String(rr.companyId || "") !== companyId) continue;
+    } else if (companyKey) {
+      if (normalizeCompany(rr.companyName || "") !== companyKey) continue;
+    }
+    candidates.push({ currency, amount });
+  }
+  if (candidates.length === 0) return null;
+  const byCurrency = new Map();
+  for (const x of candidates) byCurrency.set(x.currency, (byCurrency.get(x.currency) || 0) + 1);
+  const currency = Array.from(byCurrency.entries()).sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))[0]?.[0] || candidates[0].currency;
+  const values = candidates.filter((x) => x.currency === currency).map((x) => x.amount);
+  values.sort((a, b) => a - b);
+  return { currency, min: values[0], max: values[values.length - 1], count: values.length, updatedAt: ts };
+}
+
 const server = http.createServer(async (req, res) => {
   setCors(res);
 
@@ -1211,6 +1289,7 @@ const server = http.createServer(async (req, res) => {
       tags: Array.isArray(r.tags) ? r.tags : [],
       status: r.status || "open",
       createdAt: r.createdAt,
+      priceHint: r.priceHint || null,
       introCount: introductions.filter((i) => i.requestId === r.id).length,
       isMine: viewerId ? r.ownerId === viewerId : false
     }));
@@ -1284,8 +1363,10 @@ const server = http.createServer(async (req, res) => {
       ownerContactChannel: finalOwnerContactChannel,
       tags,
       status: "open",
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      priceHint: null
     };
+    reqItem.priceHint = computePriceHintForRequest(reqItem, reqItem.createdAt);
     markDirty();
     requests.push(reqItem);
     return json(res, 201, {
@@ -1345,6 +1426,8 @@ const server = http.createServer(async (req, res) => {
         tags: Array.isArray(r.tags) ? r.tags : [],
         status: r.status || "open",
         createdAt: r.createdAt,
+        priceHint: r.priceHint || null,
+        quoteRange: computeQuoteRangeForRequestId(r.id),
         introCount: introItems.length,
         isMine
       },
@@ -1506,6 +1589,10 @@ const server = http.createServer(async (req, res) => {
       lastNudgedAt: 0,
       quoteNote: "",
       quoteSubmittedAt: 0,
+      quoteCurrency: "",
+      quoteAmount: 0,
+      quoteAllIn: false,
+      quoteValidDays: 0,
       expiredAt: 0,
       completedAt: 0,
       complainedAt: 0
@@ -1555,6 +1642,10 @@ const server = http.createServer(async (req, res) => {
         lastNudgedAt: Number(c.lastNudgedAt || 0),
         quoteNote: String(c.quoteNote || ""),
         quoteSubmittedAt: Number(c.quoteSubmittedAt || 0),
+        quoteCurrency: String(c.quoteCurrency || ""),
+        quoteAmount: Number(c.quoteAmount || 0),
+        quoteAllIn: Boolean(c.quoteAllIn),
+        quoteValidDays: Number(c.quoteValidDays || 0),
         expiredAt: c.expiredAt || 0,
         completedAt: c.completedAt || 0,
         complainedAt: c.complainedAt || 0
@@ -1666,8 +1757,14 @@ const server = http.createServer(async (req, res) => {
     markDirty();
     const now = Date.now();
     claim.quoteNote = quoteNote;
+    const parsed = parseQuoteFromText(quoteNote);
+    claim.quoteCurrency = parsed.currency;
+    claim.quoteAmount = parsed.amount;
+    claim.quoteAllIn = parsed.allIn;
+    claim.quoteValidDays = parsed.validDays;
     claim.quoteSubmittedAt = now;
     claim.updatedAt = now;
+    r.priceHint = computePriceHintForRequest(r, now);
     notifications.push({
       id: `n_${Date.now()}_${Math.random().toString(16).slice(2)}`,
       toUserId: claim.ownerId,
@@ -1810,6 +1907,9 @@ const server = http.createServer(async (req, res) => {
       r.ownerContactChannel = normalized.slice(0, 200);
     }
     if (status === "open" || status === "closed") r.status = status;
+    if (status === "open" || (tags && tags.length > 0) || companyId || companyName) {
+      r.priceHint = computePriceHintForRequest(r, Date.now());
+    }
 
     return json(res, 200, {
       item: {
@@ -1824,6 +1924,7 @@ const server = http.createServer(async (req, res) => {
         tags: Array.isArray(r.tags) ? r.tags : [],
         status: r.status || "open",
         createdAt: r.createdAt,
+        priceHint: r.priceHint || null,
         introCount: introductions.filter((i) => i.requestId === r.id).length,
         isMine: true
       }

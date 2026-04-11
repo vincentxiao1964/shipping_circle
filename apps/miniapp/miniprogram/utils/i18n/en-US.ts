@@ -257,6 +257,8 @@ export const enUS = {
   "request.resolveSuccess": "Success +5",
   "request.resolveFail": "Not successful +1",
   "request.myRequest": "My request",
+  "request.priceHint": "Price hint",
+  "request.quoteRange": "Quotes",
   "request.edit": "Edit",
   "request.close": "Close",
   "request.reopen": "Reopen",
