@@ -117,3 +117,25 @@ export async function listContactsByCompany(input: {
     return [];
   }
 }
+
+export async function batchConfirmContacts(ids: string[]): Promise<boolean> {
+  const list = Array.isArray(ids) ? ids.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 50) : [];
+  if (list.length === 0) return false;
+  try {
+    await requestJson("POST", "/contacts/batchFeedback", { action: "confirm", ids: list });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function batchInvalidateContacts(ids: string[], reason: string): Promise<boolean> {
+  const list = Array.isArray(ids) ? ids.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 50) : [];
+  if (list.length === 0) return false;
+  try {
+    await requestJson("POST", "/contacts/batchFeedback", { action: "invalid", ids: list, reason: String(reason || "") });
+    return true;
+  } catch {
+    return false;
+  }
+}

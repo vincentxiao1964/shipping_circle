@@ -1,5 +1,13 @@
 import { getToken } from "../../services/api";
-import { confirmContact, invalidateContact, listContactsByCompany, updateContact, type ContactListItem } from "../../services/contacts";
+import {
+  batchConfirmContacts,
+  batchInvalidateContacts,
+  confirmContact,
+  invalidateContact,
+  listContactsByCompany,
+  updateContact,
+  type ContactListItem
+} from "../../services/contacts";
 import { syncPageI18n, t, type MessageKey } from "../../utils/i18n";
 
 const I18N_KEYS = [
@@ -9,6 +17,11 @@ const I18N_KEYS = [
   "contact.filter.todo",
   "contact.filter.verified",
   "contact.filter.all",
+  "contact.selectAll",
+  "contact.clearSelect",
+  "contact.selectedCount",
+  "contact.batchConfirm",
+  "contact.batchInvalid",
   "contact.copy",
   "contact.copied",
   "contact.stale",
@@ -57,7 +70,9 @@ Page({
     filter: "todo" as "todo" | "verified" | "all",
     loading: false,
     items: [] as ContactListItem[],
-    groups: [] as Group[]
+    groups: [] as Group[],
+    selectedIds: [] as string[],
+    selectedText: ""
   },
   onLoad(query: Record<string, string | undefined>) {
     syncPageI18n(this, I18N_KEYS);
@@ -72,6 +87,7 @@ Page({
       wx.navigateTo({ url: "/pages/login/index" });
       return;
     }
+    this.setData({ selectedText: t("contact.selectedCount", { count: (this.data.selectedIds || []).length }) });
     this.load();
   },
   onPullDownRefresh() {
@@ -83,6 +99,66 @@ Page({
     if (filter === this.data.filter) return;
     this.setData({ filter });
     this.load();
+  },
+  onTapToggleSelect(e: WechatMiniprogram.BaseEvent) {
+    const id = (e.currentTarget as any)?.dataset?.id as string | undefined;
+    if (!id) return;
+    const next = (this.data.selectedIds || []).slice();
+    const idx = next.indexOf(id);
+    if (idx >= 0) next.splice(idx, 1);
+    else next.push(id);
+    this.setData({ selectedIds: next, selectedText: t("contact.selectedCount", { count: next.length }) });
+  },
+  onTapSelectAll() {
+    const visible = (this.data.items || []).map((x) => x.id).filter(Boolean);
+    const selected = new Set(this.data.selectedIds || []);
+    const allSelected = visible.length > 0 && visible.every((id) => selected.has(id));
+    const next = allSelected ? [] : visible;
+    this.setData({ selectedIds: next, selectedText: t("contact.selectedCount", { count: next.length }) });
+  },
+  onTapClearSelect() {
+    this.setData({ selectedIds: [], selectedText: t("contact.selectedCount", { count: 0 }) });
+  },
+  onTapBatchConfirm() {
+    const ids = (this.data.selectedIds || []).slice();
+    if (ids.length === 0) return;
+    batchConfirmContacts(ids)
+      .then((ok) => {
+        if (!ok) throw new Error("failed");
+        wx.showToast({ title: t("contact.confirmed"), icon: "success" });
+        this.setData({ selectedIds: [], selectedText: t("contact.selectedCount", { count: 0 }) });
+        this.load();
+      })
+      .catch(() => {
+        wx.showToast({ title: t("common.failed"), icon: "none" });
+      });
+  },
+  onTapBatchInvalid() {
+    const ids = (this.data.selectedIds || []).slice();
+    if (ids.length === 0) return;
+    const reasons = [
+      { label: t("contact.invalidReasonUnreachable"), code: "unreachable" },
+      { label: t("contact.invalidReasonMismatch"), code: "mismatch" },
+      { label: t("contact.invalidReasonLeft"), code: "left" },
+      { label: t("contact.invalidReasonRefused"), code: "refused" },
+      { label: t("contact.invalidReasonOther"), code: "other" }
+    ];
+    wx.showActionSheet({
+      itemList: reasons.map((x) => x.label),
+      success: (r) => {
+        const reason = reasons[r.tapIndex]?.code || "";
+        batchInvalidateContacts(ids, reason)
+          .then((ok) => {
+            if (!ok) throw new Error("failed");
+            wx.showToast({ title: t("contact.invalidMarked"), icon: "success" });
+            this.setData({ selectedIds: [], selectedText: t("contact.selectedCount", { count: 0 }) });
+            this.load();
+          })
+          .catch(() => {
+            wx.showToast({ title: t("common.failed"), icon: "none" });
+          });
+      }
+    });
   },
   onTapCopyContact(e: WechatMiniprogram.BaseEvent) {
     const channel = (e.currentTarget as any)?.dataset?.channel as string | undefined;
@@ -172,7 +248,15 @@ Page({
           : ["stale", "candidate"];
     return listContactsByCompany({ companyId: this.data.companyId, statuses, limit: 200 })
       .then((items) => {
-        this.setData({ items, groups: groupByBusiness(items) });
+        const visibleIds = items.map((x) => x.id).filter(Boolean);
+        const selected = new Set(this.data.selectedIds || []);
+        const nextSelected = visibleIds.filter((id) => selected.has(id));
+        this.setData({
+          items,
+          groups: groupByBusiness(items),
+          selectedIds: nextSelected,
+          selectedText: t("contact.selectedCount", { count: nextSelected.length })
+        });
       })
       .finally(() => {
         this.setData({ loading: false });

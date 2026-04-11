@@ -59,6 +59,7 @@ const server = http.createServer(async (req, res) => {
         "GET /contacts/match",
         "GET /contacts/list?companyId=...",
         "POST /contacts/:id/feedback",
+        "POST /contacts/batchFeedback",
         "PUT /admin/companies/:id/aliases",
         "POST /admin/companies/merge",
         "GET /requests",
@@ -635,6 +636,42 @@ const server = http.createServer(async (req, res) => {
       }));
 
     return json(res, 200, { items });
+  }
+
+  if (req.method === "POST" && url.pathname === "/contacts/batchFeedback") {
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!userId) return json(res, 401, { error: "Unauthorized" });
+    const body = await readJson(req).catch(() => null);
+    const action = typeof body?.action === "string" ? body.action.trim() : "";
+    const ids = Array.isArray(body?.ids) ? body.ids.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 50) : [];
+    const reason = typeof body?.reason === "string" ? body.reason.trim() : "";
+    if (ids.length === 0) return json(res, 400, { error: "ids required" });
+    if (action !== "confirm" && action !== "invalid") return json(res, 400, { error: "action must be confirm|invalid" });
+    const now = Date.now();
+    let okCount = 0;
+    const notFound = [];
+    markDirty();
+    for (const id of ids) {
+      const c = contacts.find((x) => x && x.id === id);
+      if (!c) {
+        notFound.push(id);
+        continue;
+      }
+      if (action === "confirm") {
+        c.status = "verified";
+        c.verifiedAt = now;
+        c.updatedAt = now;
+        okCount += 1;
+      } else {
+        c.status = "invalid";
+        c.failCount = Number(c.failCount || 0) + 1;
+        c.lastFailureAt = now;
+        c.lastFailureReason = reason.slice(0, 80);
+        c.updatedAt = now;
+        okCount += 1;
+      }
+    }
+    return json(res, 200, { ok: true, okCount, notFound });
   }
 
   const contactFeedbackMatch = url.pathname.match(/^\/contacts\/([^/]+)\/feedback$/);
