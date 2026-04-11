@@ -16,6 +16,7 @@ export const enUS = {
   "common.clear": "Clear",
   "auth.noCode": "No login code",
   "auth.loginFailed": "Login failed",
+  "auth.sessionExpired": "Session expired. Please log in again.",
   "home.title": "Shipping Circle",
   "home.subtitle": "Networking Square (MVP)",
   "home.tab.square": "Square",

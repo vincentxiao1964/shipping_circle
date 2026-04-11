@@ -16,6 +16,7 @@ export const zhCN = {
   "common.clear": "清空",
   "auth.noCode": "未获取到登录码",
   "auth.loginFailed": "登录失败",
+  "auth.sessionExpired": "登录已过期，请重新登录",
   "home.title": "海运圈",
   "home.subtitle": "人脉广场（MVP）",
   "home.tab.square": "广场",

@@ -1,3 +1,5 @@
+import { t } from "../utils/i18n";
+
 type HttpMethod = "GET" | "POST" | "PUT";
 type RequestData = WechatMiniprogram.IAnyObject | string | ArrayBuffer | undefined;
 
@@ -58,19 +60,12 @@ export async function requestJson<TResponse>(
   } catch (e) {
     const statusCode = (e as any)?.statusCode as number | undefined;
     if (statusCode !== 401) throw e;
-    if (!auth) {
-      clearToken();
-      throw e;
-    }
+    if (!auth) return handleUnauthorized(e);
     if (path === "/auth/wechat" || path === "/auth/refresh" || path === "/auth/logout") {
-      clearToken();
-      throw e;
+      return handleUnauthorized(e);
     }
-    const refreshed = await refreshToken(auth).catch(() => null);
-    if (!refreshed?.token) {
-      clearToken();
-      throw e;
-    }
+    const refreshed = await refreshTokenOnce(auth);
+    if (!refreshed?.token) return handleUnauthorized(e);
     setToken(refreshed.token, refreshed.expiresAt);
     return requestJsonOnce<TResponse>({ method, url, data, auth: refreshed.token });
   }
@@ -106,6 +101,35 @@ async function refreshToken(token: string): Promise<{ token: string; expiresAt?:
   const { baseUrl } = getApiConfig();
   const url = `${baseUrl}/auth/refresh`;
   return requestJsonOnce<{ token: string; expiresAt?: number }>({ method: "POST", url, data: {}, auth: token });
+}
+
+let refreshInFlight: Promise<{ token: string; expiresAt?: number } | null> | null = null;
+async function refreshTokenOnce(token: string) {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = refreshToken(token)
+    .then((r) => (r?.token ? r : null))
+    .catch(() => null)
+    .finally(() => {
+      refreshInFlight = null;
+    });
+  return refreshInFlight;
+}
+
+let lastLoginRedirectAt = 0;
+function handleUnauthorized<T>(err: any): T {
+  clearToken();
+  const now = Date.now();
+  if (now - lastLoginRedirectAt > 3000) {
+    lastLoginRedirectAt = now;
+    wx.showToast({ title: t("auth.sessionExpired"), icon: "none" });
+    const pages = getCurrentPages();
+    const current = pages && pages.length > 0 ? pages[pages.length - 1] : null;
+    const route = (current as any)?.route as string | undefined;
+    if (route !== "pages/login/index") {
+      wx.navigateTo({ url: "/pages/login/index" });
+    }
+  }
+  throw err;
 }
 
 function safeGetStorage(key: string): unknown {
