@@ -256,6 +256,70 @@ test("contacts: list returns stale and candidate", async () => {
   }
 });
 
+test("contacts: list can include verified", async () => {
+  const { child, port } = await startServer({ PORT: "0", TOKEN_TTL_MS: "60000", REFRESH_GRACE_MS: "60000" });
+  try {
+    const base = `http://localhost:${port}`;
+
+    const loginOwner = await fetch(`${base}/auth/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "owner_code_list_verified" })
+    }).then((r) => r.json());
+
+    const loginIntro = await fetch(`${base}/auth/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "intro_code_list_verified" })
+    }).then((r) => r.json());
+
+    const reqResp = await fetch(`${base}/requests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${loginOwner.token}` },
+      body: JSON.stringify({ title: "need owner", companyName: "Demo Co", content: "x", tags: ["订舱"] })
+    });
+    assert.equal(reqResp.status, 201);
+    const created = await reqResp.json();
+    const requestId = created.item.id;
+    const companyId = created.item.companyId;
+    assert.ok(requestId);
+    assert.ok(companyId);
+
+    const introResp = await fetch(`${base}/requests/${encodeURIComponent(requestId)}/introductions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${loginIntro.token}` },
+      body: JSON.stringify({
+        contactName: "Vera",
+        contactTitle: "订舱负责人",
+        contactChannel: "wechat: vera_demo",
+        clue: "",
+        note: ""
+      })
+    });
+    assert.equal(introResp.status, 201);
+    const intro = await introResp.json();
+    const introId = intro.item.id;
+    assert.ok(introId);
+
+    const resolveResp = await fetch(`${base}/introductions/${encodeURIComponent(introId)}/resolve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${loginOwner.token}` },
+      body: JSON.stringify({ outcome: "success" })
+    });
+    assert.equal(resolveResp.status, 200);
+
+    const listResp = await fetch(`${base}/contacts/list?companyId=${encodeURIComponent(companyId)}&statuses=${encodeURIComponent("verified")}`, {
+      headers: { Authorization: `Bearer ${loginOwner.token}` }
+    });
+    assert.equal(listResp.status, 200);
+    const listed = await listResp.json();
+    assert.ok(Array.isArray(listed.items));
+    assert.ok(listed.items.some((x) => x.contactChannel === "wechat: vera_demo"));
+  } finally {
+    await stopServer(child);
+  }
+});
+
 test("contacts: stale is computed by verifiedAt", async () => {
   const { child, port } = await startServer({
     PORT: "0",

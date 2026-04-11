@@ -6,6 +6,9 @@ const I18N_KEYS = [
   "contact.manageTitle",
   "contact.manageEmpty",
   "contact.manageHint",
+  "contact.filter.todo",
+  "contact.filter.verified",
+  "contact.filter.all",
   "contact.copy",
   "contact.copied",
   "contact.stale",
@@ -51,6 +54,7 @@ Page({
     i18n: {},
     companyId: "",
     companyName: "",
+    filter: "todo" as "todo" | "verified" | "all",
     loading: false,
     items: [] as ContactListItem[],
     groups: [] as Group[]
@@ -72,6 +76,13 @@ Page({
   },
   onPullDownRefresh() {
     this.load().finally(() => wx.stopPullDownRefresh());
+  },
+  onTapFilter(e: WechatMiniprogram.BaseEvent) {
+    const filter = (e.currentTarget as any)?.dataset?.filter as "todo" | "verified" | "all" | undefined;
+    if (!filter) return;
+    if (filter === this.data.filter) return;
+    this.setData({ filter });
+    this.load();
   },
   onTapCopyContact(e: WechatMiniprogram.BaseEvent) {
     const channel = (e.currentTarget as any)?.dataset?.channel as string | undefined;
@@ -153,7 +164,13 @@ Page({
     }
     if (this.data.loading) return Promise.resolve();
     this.setData({ loading: true });
-    return listContactsByCompany({ companyId: this.data.companyId, statuses: ["stale", "candidate"], limit: 200 })
+    const statuses =
+      this.data.filter === "verified"
+        ? ["verified"]
+        : this.data.filter === "all"
+          ? ["verified", "stale", "candidate"]
+          : ["stale", "candidate"];
+    return listContactsByCompany({ companyId: this.data.companyId, statuses, limit: 200 })
       .then((items) => {
         this.setData({ items, groups: groupByBusiness(items) });
       })
@@ -162,4 +179,3 @@ Page({
       });
   }
 });
-

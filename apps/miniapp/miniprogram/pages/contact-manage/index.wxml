@@ -4,6 +4,26 @@
     <view class="muted" style="margin-top: 8rpx;">{{i18n["contact.manageHint"]}}</view>
   </view>
 
+  <view class="card" style="margin-top: 16rpx;">
+    <view class="row">
+      <button size="mini" type="{{filter === 'todo' ? 'primary' : 'default'}}" data-filter="todo" catchtap="onTapFilter">
+        {{i18n["contact.filter.todo"]}}
+      </button>
+      <button
+        size="mini"
+        style="margin-left: 12rpx;"
+        type="{{filter === 'verified' ? 'primary' : 'default'}}"
+        data-filter="verified"
+        catchtap="onTapFilter"
+      >
+        {{i18n["contact.filter.verified"]}}
+      </button>
+      <button size="mini" style="margin-left: 12rpx;" type="{{filter === 'all' ? 'primary' : 'default'}}" data-filter="all" catchtap="onTapFilter">
+        {{i18n["contact.filter.all"]}}
+      </button>
+    </view>
+  </view>
+
   <view class="card" style="margin-top: 16rpx;" wx:if="{{!loading && items.length === 0}}">
     <view class="muted">{{i18n["contact.manageEmpty"]}}</view>
   </view>
@@ -19,7 +39,9 @@
       <view class="muted" style="margin-top: 8rpx;" wx:if="{{c.status === 'stale'}}">{{i18n["contact.stale"]}}</view>
       <view class="muted" style="margin-top: 8rpx;" wx:if="{{c.status === 'candidate'}}">{{i18n["contact.candidate"]}}</view>
       <view class="row" style="margin-top: 8rpx;">
-        <button size="mini" type="primary" data-id="{{c.id}}" catchtap="onTapContactConfirm">{{i18n["contact.confirm"]}}</button>
+        <button size="mini" type="primary" data-id="{{c.id}}" catchtap="onTapContactConfirm" wx:if="{{c.status !== 'verified'}}">
+          {{i18n["contact.confirm"]}}
+        </button>
         <button size="mini" style="margin-left: 12rpx;" data-id="{{c.id}}" data-channel="{{c.contactChannel}}" catchtap="onTapContactUpdate">
           {{i18n["contact.update"]}}
         </button>
@@ -31,4 +53,3 @@
     </view>
   </view>
 </view>
-
