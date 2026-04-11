@@ -183,6 +183,8 @@ export const zhCN = {
   "request.title": "标题",
   "request.companyName": "目标公司（可选）",
   "request.tags": "要找哪些业务负责人（逗号分隔）",
+  "request.recommendIntro": "可能能介绍的人",
+  "request.viewProfile": "看看主页",
   "request.tagsPick": "选择热门业务",
   "request.tagsCustom": "自定义…",
   "request.businessRequired": "请至少选择一个业务",

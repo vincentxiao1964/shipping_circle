@@ -36,6 +36,13 @@ export type RequestDetail = RequestListItem & {
   introductions: IntroductionItem[];
 };
 
+export type IntroducerRecommendItem = {
+  id: string;
+  displayName: string;
+  score: number;
+  successCount: number;
+};
+
 export type PageResult<T> = {
   items: T[];
   nextCursor: string | null;
@@ -186,6 +193,18 @@ export async function listPopularTags(input?: { limit?: number }): Promise<TagCo
     return Array.isArray(res?.items) ? res.items : [];
   } catch {
     return listLocalPopularTags(limit);
+  }
+}
+
+export async function getRecommendedIntroducers(requestId: string, limit = 5): Promise<IntroducerRecommendItem[]> {
+  const id = requestId.trim();
+  if (!id) return [];
+  try {
+    const qs = buildQuery({ limit: String(limit) });
+    const res = await requestJson<{ items: IntroducerRecommendItem[] }>("GET", `/requests/${encodeURIComponent(id)}/recommend-introducers${qs}`);
+    return Array.isArray(res?.items) ? res.items : [];
+  } catch {
+    return [];
   }
 }
 

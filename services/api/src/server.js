@@ -69,6 +69,7 @@ const server = http.createServer(async (req, res) => {
         "POST /requests",
         "GET /requests/:id",
         "PUT /requests/:id",
+        "GET /requests/:id/recommend-introducers",
         "POST /requests/:id/introductions",
         "GET /tags",
         "GET /introductions",
@@ -1042,6 +1043,65 @@ const server = http.createServer(async (req, res) => {
       },
       introductions: introItems
     });
+  }
+
+  const recommendIntroMatch = url.pathname.match(/^\/requests\/([^/]+)\/recommend-introducers$/);
+  if (req.method === "GET" && recommendIntroMatch) {
+    const viewerId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!viewerId) return json(res, 401, { error: "Unauthorized" });
+    const id = decodeURIComponent(recommendIntroMatch[1]);
+    const r = requests.find((x) => x.id === id);
+    if (!r) return json(res, 404, { error: "Not Found" });
+    const limitRaw = Number(url.searchParams.get("limit") || 5);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(1, limitRaw), 20) : 5;
+    const tagSet = new Set((Array.isArray(r.tags) ? r.tags : []).map((x) => String(x || "").trim()).filter(Boolean).slice(0, 10));
+    const companyId = String(r.companyId || "").trim();
+    const companyKey = companyId ? "" : normalizeCompany(r.companyName || "");
+
+    const byUser = new Map();
+    const now = Date.now();
+    const RECENT_MS = 180 * 24 * 60 * 60 * 1000;
+    for (const i of introductions) {
+      if (i.outcome !== "success") continue;
+      const rr = requests.find((x) => x.id === i.requestId);
+      if (!rr) continue;
+      if (companyId) {
+        if (String(rr.companyId || "") !== companyId) continue;
+      } else {
+        if (normalizeCompany(rr.companyName || "") !== companyKey) continue;
+      }
+      const hasTag = Array.isArray(rr.tags) && rr.tags.some((t) => tagSet.has(String(t || "").trim()));
+      if (!hasTag) continue;
+      const userId = String(i.introducerId || "").trim();
+      if (!userId || userId === r.ownerId) continue;
+      const recencyBoost = i.resolvedAt && now - i.resolvedAt < RECENT_MS ? 1 : 0;
+      const item = byUser.get(userId) || { userId, successCount: 0, score: 0 };
+      item.successCount += 1;
+      item.score += 2 + recencyBoost;
+      byUser.set(userId, item);
+    }
+
+    if (companyId) {
+      for (const [uid, set] of companyFollows.entries()) {
+        if (!set || !set.has) continue;
+        if (uid === r.ownerId) continue;
+        if (set.has(companyId)) {
+          const item = byUser.get(uid) || { userId: uid, successCount: 0, score: 0 };
+          item.score += 1;
+          byUser.set(uid, item);
+        }
+      }
+    }
+
+    const rows = Array.from(byUser.values())
+      .filter((x) => x.userId !== viewerId)
+      .sort((a, b) => b.score - a.score || b.successCount - a.successCount)
+      .slice(0, limit);
+    const items = rows.map((r) => {
+      const u = ensureUser(r.userId);
+      return { id: u.id, displayName: u.displayName, score: r.score, successCount: r.successCount };
+    });
+    return json(res, 200, { items });
   }
 
   if (req.method === "PUT" && requestMatch) {

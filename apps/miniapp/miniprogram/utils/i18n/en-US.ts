@@ -183,6 +183,8 @@ export const enUS = {
   "request.title": "Title",
   "request.companyName": "Target company (optional)",
   "request.tags": "Businesses to find owners (comma separated)",
+  "request.recommendIntro": "Recommended introducers",
+  "request.viewProfile": "View profile",
   "request.tagsPick": "Pick popular businesses",
   "request.tagsCustom": "Custom…",
   "request.businessRequired": "Select at least one business",

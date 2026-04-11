@@ -74,6 +74,20 @@
     </view>
   </view>
 
+  <view class="card" style="margin-top: 16rpx;" wx:if="{{recommend && recommend.length > 0}}">
+    <view class="row">
+      <view style="font-weight: 600;">{{i18n["request.recommendIntro"]}}</view>
+      <button size="mini" bindtap="onTapRefresh">{{i18n["common.refresh"]}}</button>
+    </view>
+    <view class="card" style="margin-top: 12rpx;" wx:for="{{recommend}}" wx:for-item="u" wx:key="id" data-id="{{u.id}}" bindtap="onTapViewUser">
+      <view class="row">
+        <view style="font-weight: 600;">{{u.displayName}}</view>
+        <button size="mini">{{i18n["request.viewProfile"]}}</button>
+      </view>
+      <view class="muted" style="margin-top: 8rpx;">score {{u.score}} · {{u.successCount}} success</view>
+    </view>
+  </view>
+
   <view class="card" style="margin-top: 16rpx;">
     <view style="font-weight: 600;">{{i18n["request.introductions"]}} ({{item.introductions.length}})</view>
     <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.introductions.length === 0}}">-</view>

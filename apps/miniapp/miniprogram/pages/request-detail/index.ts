@@ -50,6 +50,8 @@ const I18N_KEYS = [
   "request.closed",
   "request.companyName",
   "request.tags",
+  "request.recommendIntro",
+  "request.viewProfile",
   "request.ownerContactChannel",
   "request.success",
   "request.fail",
@@ -68,6 +70,7 @@ Page({
     id: "",
     meUserId: "",
     item: null as RequestDetail | null,
+    recommend: [] as { id: string; displayName: string; score: number; successCount: number }[],
     contactGroups: [] as ContactMatchGroup[],
     contactLoading: false,
     loading: false
@@ -317,12 +320,26 @@ Page({
         this.setData({ item });
         return this.loadContacts(item);
       })
+      .then(async () => {
+        try {
+          const mod = await import("../../services/requests");
+          const rec = await mod.getRecommendedIntroducers(this.data.id, 5);
+          this.setData({ recommend: rec });
+        } catch {
+          this.setData({ recommend: [] });
+        }
+      })
       .catch(() => {
         this.setData({ item: null });
       })
       .finally(() => {
         this.setData({ loading: false });
       });
+  },
+  onTapViewUser(e: WechatMiniprogram.BaseEvent) {
+    const id = (e.currentTarget as any)?.dataset?.id as string | undefined;
+    if (!id) return;
+    wx.navigateTo({ url: `/pages/user/index?id=${encodeURIComponent(id)}` });
   },
   loadContacts(item: RequestDetail | null) {
     if (!item?.companyId && !item?.companyName) {
