@@ -206,6 +206,8 @@ export const zhCN = {
   "request.claimStatusComplained": "已投诉",
   "request.claimStatusExpired": "已超时",
   "request.claimAck": "我已响应",
+  "request.claimNudge": "催办",
+  "request.claimNudged": "已催办",
   "request.claimComplete": "确认完成",
   "request.claimComplain": "投诉",
   "request.complainReasonTitle": "投诉原因",

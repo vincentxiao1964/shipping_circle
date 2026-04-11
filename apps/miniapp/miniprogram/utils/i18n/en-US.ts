@@ -206,6 +206,8 @@ export const enUS = {
   "request.claimStatusComplained": "Complained",
   "request.claimStatusExpired": "Expired",
   "request.claimAck": "Responded",
+  "request.claimNudge": "Nudge",
+  "request.claimNudged": "Nudged",
   "request.claimComplete": "Complete",
   "request.claimComplain": "Complain",
   "request.complainReasonTitle": "Complain reason",

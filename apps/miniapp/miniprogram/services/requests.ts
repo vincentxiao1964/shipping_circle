@@ -44,6 +44,7 @@ export type IntroducerRecommendItem = {
   points?: number;
   complaintCount?: number;
   claimExpiredCount?: number;
+  claimNudgePenaltyCount?: number;
 };
 
 export type RequestClaimItem = {
@@ -55,6 +56,8 @@ export type RequestClaimItem = {
   createdAt: number;
   updatedAt?: number;
   acknowledgedAt?: number;
+  nudgeCount?: number;
+  lastNudgedAt?: number;
   expiredAt?: number;
   completedAt?: number;
   complainedAt?: number;
@@ -297,6 +300,23 @@ export async function ackRequestClaim(requestId: string, claimId: string): Promi
     return Boolean(res?.ok);
   } catch {
     return false;
+  }
+}
+
+export async function nudgeRequestClaim(requestId: string, claimId: string): Promise<{ overdue: boolean; penaltyPoints: number; nudgeCount: number } | null> {
+  const rid = requestId.trim();
+  const cid = claimId.trim();
+  if (!rid || !cid) return null;
+  try {
+    const res = await requestJson<{ ok: boolean; duplicated?: boolean; overdue?: boolean; penaltyPoints?: number; nudgeCount?: number }>(
+      "POST",
+      `/requests/${encodeURIComponent(rid)}/claims/${encodeURIComponent(cid)}/nudge`,
+      {}
+    );
+    if (!res?.ok) return null;
+    return { overdue: Boolean(res.overdue), penaltyPoints: Number(res.penaltyPoints || 0), nudgeCount: Number(res.nudgeCount || 0) };
+  } catch {
+    return null;
   }
 }
 

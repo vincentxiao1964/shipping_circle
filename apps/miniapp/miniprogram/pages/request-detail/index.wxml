@@ -71,6 +71,15 @@
       <view class="row" style="margin-top: 12rpx;" wx:if="{{c.status === 'claimed'}}">
         <button size="mini" type="primary" data-id="{{c.id}}" bindtap="onTapClaimComplete">{{i18n["request.claimComplete"]}}</button>
         <button size="mini" style="margin-left: 12rpx;" data-id="{{c.id}}" bindtap="onTapClaimComplain">{{i18n["request.claimComplain"]}}</button>
+        <button
+          size="mini"
+          style="margin-left: 12rpx;"
+          data-id="{{c.id}}"
+          wx:if="{{c.acknowledgedAt}}"
+          bindtap="onTapClaimNudge"
+        >
+          {{i18n["request.claimNudge"]}}
+        </button>
       </view>
     </view>
   </view>
@@ -130,7 +139,7 @@
         </view>
       </view>
       <view class="muted" style="margin-top: 8rpx;">
-        score {{u.score}} · {{u.successCount}} success · points {{u.points || 0}} · complaints {{u.complaintCount || 0}} · expired {{u.claimExpiredCount || 0}}
+        score {{u.score}} · {{u.successCount}} success · points {{u.points || 0}} · complaints {{u.complaintCount || 0}} · expired {{u.claimExpiredCount || 0}} · nudged {{u.claimNudgePenaltyCount || 0}}
       </view>
     </view>
   </view>

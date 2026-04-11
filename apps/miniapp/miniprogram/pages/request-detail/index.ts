@@ -10,6 +10,7 @@ import {
   getRecommendedIntroducers,
   getRequest,
   listRequestClaims,
+  nudgeRequestClaim,
   pingIntroducer,
   updateRequest,
   resolveIntroduction,
@@ -84,6 +85,8 @@ const I18N_KEYS = [
   "request.claimStatusComplained",
   "request.claimStatusExpired",
   "request.claimAck",
+  "request.claimNudge",
+  "request.claimNudged",
   "request.claimComplete",
   "request.claimComplain",
   "request.complainReasonTitle",
@@ -475,6 +478,24 @@ Page({
           });
       }
     });
+  },
+  onTapClaimNudge(e: WechatMiniprogram.BaseEvent) {
+    const claimId = (e.currentTarget as any)?.dataset?.id as string | undefined;
+    if (!claimId) return;
+    if (!this.data.item?.isMine) return;
+    if (!getToken()) {
+      wx.navigateTo({ url: "/pages/login/index" });
+      return;
+    }
+    nudgeRequestClaim(this.data.item.id, claimId)
+      .then((res) => {
+        if (!res) throw new Error("failed");
+        wx.showToast({ title: t("request.claimNudged"), icon: "success" });
+        this.load();
+      })
+      .catch(() => {
+        wx.showToast({ title: t("common.failed"), icon: "none" });
+      });
   },
   getClaimStatusLabel(status: string, acknowledgedAt?: number) {
     if (status === "claimed" && !acknowledgedAt) return t("request.claimStatusUnacked");

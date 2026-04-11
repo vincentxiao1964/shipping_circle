@@ -38,6 +38,10 @@ const COMPLAINT_BLOCK_THRESHOLD = Number(process.env.COMPLAINT_BLOCK_THRESHOLD |
 const CLAIM_ACK_TIMEOUT_MS = Number(process.env.CLAIM_ACK_TIMEOUT_MS || 10 * 60 * 1000);
 const CLAIM_EXPIRE_PENALTY_POINTS = Number(process.env.CLAIM_EXPIRE_PENALTY_POINTS || 2);
 const MAX_ACTIVE_CLAIMS = Number(process.env.MAX_ACTIVE_CLAIMS || 3);
+const CLAIM_NUDGE_AFTER_MS = Number(process.env.CLAIM_NUDGE_AFTER_MS || 24 * 60 * 60 * 1000);
+const CLAIM_NUDGE_PENALTY_POINTS = Number(process.env.CLAIM_NUDGE_PENALTY_POINTS || 1);
+const CLAIM_NUDGE_MIN_INTERVAL_MS = Number(process.env.CLAIM_NUDGE_MIN_INTERVAL_MS || 30 * 60 * 1000);
+const MAX_NUDGES_PER_CLAIM = Number(process.env.MAX_NUDGES_PER_CLAIM || 3);
 
 function autoExpireClaims(now) {
   const ts = typeof now === "number" ? now : Date.now();
@@ -121,6 +125,7 @@ const server = http.createServer(async (req, res) => {
         "POST /requests/:id/claim",
         "GET /requests/:id/claims",
         "POST /requests/:id/claims/:claimId/ack",
+        "POST /requests/:id/claims/:claimId/nudge",
         "POST /requests/:id/claims/:claimId/complete",
         "POST /requests/:id/claims/:claimId/complain",
         "POST /requests/:id/ping",
@@ -341,6 +346,8 @@ const server = http.createServer(async (req, res) => {
         complaintCount: Number(stats.complaintCount || 0),
         claimComplaintCount: Number(stats.claimComplaintCount || 0),
         claimExpiredCount: Number(stats.claimExpiredCount || 0),
+        claimNudgeCount: Number(stats.claimNudgeCount || 0),
+        claimNudgePenaltyCount: Number(stats.claimNudgePenaltyCount || 0),
         topTags
       }
     });
@@ -1329,13 +1336,15 @@ const server = http.createServer(async (req, res) => {
         const recent = complaintRecentCountByUser.get(x.userId) || 0;
         const pointsBoost = Math.min(3, Math.floor(Number(stats.points || 0) / 20));
         const expiredCount = Number(stats.claimExpiredCount || 0);
-        const complaintPenalty = complaintCount * 2 + recent * 3 + expiredCount * 2;
+        const nudgePenaltyCount = Number(stats.claimNudgePenaltyCount || 0);
+        const complaintPenalty = complaintCount * 2 + recent * 3 + expiredCount * 2 + nudgePenaltyCount;
         return {
           ...x,
           score: x.score + pointsBoost - complaintPenalty,
           complaintCount,
           points: Number(stats.points || 0),
-          claimExpiredCount: expiredCount
+          claimExpiredCount: expiredCount,
+          claimNudgePenaltyCount: nudgePenaltyCount
         };
       })
       .sort((a, b) => b.score - a.score || b.successCount - a.successCount)
@@ -1349,7 +1358,8 @@ const server = http.createServer(async (req, res) => {
         successCount: r.successCount,
         complaintCount: r.complaintCount,
         points: r.points,
-        claimExpiredCount: Number(r.claimExpiredCount || 0)
+        claimExpiredCount: Number(r.claimExpiredCount || 0),
+        claimNudgePenaltyCount: Number(r.claimNudgePenaltyCount || 0)
       };
     });
     return json(res, 200, { items });
@@ -1430,6 +1440,8 @@ const server = http.createServer(async (req, res) => {
       createdAt: now,
       updatedAt: now,
       acknowledgedAt: 0,
+      nudgeCount: 0,
+      lastNudgedAt: 0,
       expiredAt: 0,
       completedAt: 0,
       complainedAt: 0
@@ -1475,6 +1487,8 @@ const server = http.createServer(async (req, res) => {
         createdAt: c.createdAt,
         updatedAt: c.updatedAt || c.createdAt,
         acknowledgedAt: c.acknowledgedAt || 0,
+        nudgeCount: Number(c.nudgeCount || 0),
+        lastNudgedAt: Number(c.lastNudgedAt || 0),
         expiredAt: c.expiredAt || 0,
         completedAt: c.completedAt || 0,
         complainedAt: c.complainedAt || 0
@@ -1510,6 +1524,59 @@ const server = http.createServer(async (req, res) => {
       data: { kind: "claimAck", requestId: r.id, claimId: claim.id, fromUserId: userId }
     });
     return json(res, 200, { ok: true });
+  }
+
+  const requestClaimNudgeMatch = url.pathname.match(/^\/requests\/([^/]+)\/claims\/([^/]+)\/nudge$/);
+  if (req.method === "POST" && requestClaimNudgeMatch) {
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!userId) return json(res, 401, { error: "Unauthorized" });
+    const requestId = decodeURIComponent(requestClaimNudgeMatch[1]);
+    const claimId = decodeURIComponent(requestClaimNudgeMatch[2]);
+    const r = requests.find((x) => x.id === requestId);
+    if (!r) return json(res, 404, { error: "Not Found" });
+    if (r.ownerId !== userId) return json(res, 403, { error: "Forbidden" });
+    const claim = requestClaims.find((c) => c && c.id === claimId && c.requestId === r.id);
+    if (!claim) return json(res, 404, { error: "Not Found" });
+    if (claim.status !== "claimed") return json(res, 400, { error: "cannot nudge" });
+    if (!Number(claim.acknowledgedAt || 0)) return json(res, 400, { error: "not acknowledged" });
+
+    const now = Date.now();
+    const last = Number(claim.lastNudgedAt || 0);
+    if (last && now - last < Math.max(0, CLAIM_NUDGE_MIN_INTERVAL_MS)) return json(res, 200, { ok: true, duplicated: true });
+    const nextCount = Number(claim.nudgeCount || 0) + 1;
+    if (nextCount > Math.max(1, MAX_NUDGES_PER_CLAIM)) return json(res, 400, { error: "too many nudges" });
+
+    markDirty();
+    claim.nudgeCount = nextCount;
+    claim.lastNudgedAt = now;
+    claim.updatedAt = now;
+
+    const overdue = now - Number(claim.acknowledgedAt || 0) >= Math.max(0, CLAIM_NUDGE_AFTER_MS);
+    let penaltyPoints = 0;
+    if (overdue) {
+      penaltyPoints = Math.max(0, CLAIM_NUDGE_PENALTY_POINTS);
+      const stats = ensureUserStats(claim.claimerId);
+      stats.points -= penaltyPoints;
+      stats.claimNudgePenaltyCount = Number(stats.claimNudgePenaltyCount || 0) + 1;
+      userStats.set(claim.claimerId, stats);
+    }
+    const owner = ensureUser(userId);
+    const claimer = ensureUser(claim.claimerId);
+    const claimerStats = ensureUserStats(claimer.id);
+    claimerStats.claimNudgeCount = Number(claimerStats.claimNudgeCount || 0) + 1;
+    userStats.set(claimer.id, claimerStats);
+
+    notifications.push({
+      id: `n_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      toUserId: claim.claimerId,
+      type: "system",
+      title: "Nudged / 被催办",
+      content: `${owner.displayName}: ${r.title}`.slice(0, 500),
+      createdAt: now,
+      readAt: null,
+      data: { kind: "claimNudge", requestId: r.id, claimId: claim.id, fromUserId: owner.id, overdue, penaltyPoints }
+    });
+    return json(res, 200, { ok: true, duplicated: false, overdue, penaltyPoints, nudgeCount: nextCount });
   }
 
   const requestClaimCompleteMatch = url.pathname.match(/^\/requests\/([^/]+)\/claims\/([^/]+)\/complete$/);
@@ -2372,6 +2439,8 @@ function ensureUserStats(userId) {
     if (typeof existing.complaintCount !== "number") existing.complaintCount = 0;
     if (typeof existing.claimComplaintCount !== "number") existing.claimComplaintCount = 0;
     if (typeof existing.claimExpiredCount !== "number") existing.claimExpiredCount = 0;
+    if (typeof existing.claimNudgeCount !== "number") existing.claimNudgeCount = 0;
+    if (typeof existing.claimNudgePenaltyCount !== "number") existing.claimNudgePenaltyCount = 0;
     return existing;
   }
   markDirty();
@@ -2382,7 +2451,9 @@ function ensureUserStats(userId) {
     claimCompleteCount: 0,
     complaintCount: 0,
     claimComplaintCount: 0,
-    claimExpiredCount: 0
+    claimExpiredCount: 0,
+    claimNudgeCount: 0,
+    claimNudgePenaltyCount: 0
   };
   userStats.set(userId, s);
   return s;
