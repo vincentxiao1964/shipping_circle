@@ -136,12 +136,16 @@ export async function submitIntroduction(input: {
   }
 }
 
-export async function resolveIntroduction(input: { introId: string; outcome: "success" | "fail" }): Promise<{ pointsAwarded: number } | null> {
+export async function resolveIntroduction(input: {
+  introId: string;
+  outcome: "success" | "fail";
+  reason?: string;
+}): Promise<{ pointsAwarded: number } | null> {
   try {
     const res = await requestJson<{ item: { pointsAwarded: number } }>(
       "POST",
       `/introductions/${encodeURIComponent(input.introId)}/resolve`,
-      { outcome: input.outcome }
+      { outcome: input.outcome, reason: input.reason || "" }
     );
     return res?.item ? { pointsAwarded: Number(res.item.pointsAwarded) } : null;
   } catch {
@@ -350,7 +354,7 @@ function buildIntroNote(input: { contactName?: string; contactTitle?: string; co
   return parts.join("\n");
 }
 
-function resolveIntroLocal(input: { introId: string; outcome: "success" | "fail" }): { pointsAwarded: number } | null {
+function resolveIntroLocal(input: { introId: string; outcome: "success" | "fail"; reason?: string }): { pointsAwarded: number } | null {
   const me = getUserId() ?? "";
   if (!me) return null;
   const all = readAll();

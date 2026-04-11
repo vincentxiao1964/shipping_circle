@@ -20,6 +20,12 @@ const I18N_KEYS = [
   "contact.copied",
   "request.resolveSuccess",
   "request.resolveFail",
+  "intro.failReasonTitle",
+  "intro.failReasonUnreachable",
+  "intro.failReasonMismatch",
+  "intro.failReasonLeft",
+  "intro.failReasonRefused",
+  "intro.failReasonOther",
   "request.myRequest",
   "request.editTitle",
   "request.edit",
@@ -168,14 +174,40 @@ Page({
       wx.navigateTo({ url: "/pages/login/index" });
       return;
     }
-    resolveIntroduction({ introId, outcome })
-      .then(() => {
-        wx.showToast({ title: t("common.ok"), icon: "success" });
-        this.load();
-      })
-      .catch(() => {
-        wx.showToast({ title: t("common.failed"), icon: "none" });
-      });
+    if (outcome === "success") {
+      resolveIntroduction({ introId, outcome })
+        .then(() => {
+          wx.showToast({ title: t("common.ok"), icon: "success" });
+          this.load();
+        })
+        .catch(() => {
+          wx.showToast({ title: t("common.failed"), icon: "none" });
+        });
+      return;
+    }
+
+    const reasons = [
+      { label: t("intro.failReasonUnreachable"), code: "unreachable" },
+      { label: t("intro.failReasonMismatch"), code: "mismatch" },
+      { label: t("intro.failReasonLeft"), code: "left" },
+      { label: t("intro.failReasonRefused"), code: "refused" },
+      { label: t("intro.failReasonOther"), code: "other" }
+    ];
+    wx.showActionSheet({
+      itemList: reasons.map((x) => x.label),
+      success: (res) => {
+        const chosen = reasons[res.tapIndex];
+        const reason = chosen?.code || "";
+        resolveIntroduction({ introId, outcome, reason })
+          .then(() => {
+            wx.showToast({ title: t("common.ok"), icon: "success" });
+            this.load();
+          })
+          .catch(() => {
+            wx.showToast({ title: t("common.failed"), icon: "none" });
+          });
+      }
+    });
   },
   load() {
     if (this.data.loading) return;

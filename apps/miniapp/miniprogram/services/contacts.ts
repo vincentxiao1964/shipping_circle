@@ -2,14 +2,18 @@ import { requestJson } from "./api";
 
 export type ContactMatch = {
   id: string;
+  companyId?: string;
   companyName: string;
   business: string;
   contactName: string;
   contactTitle: string;
   contactChannel: string;
   clue: string;
+  status?: string;
   verifiedAt: number;
   successCount: number;
+  failCount?: number;
+  lastFailureAt?: number;
 };
 
 export type ContactMatchGroup = {

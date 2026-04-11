@@ -377,9 +377,9 @@ const server = http.createServer(async (req, res) => {
       .slice(0, 20);
     const wantedSet = wanted.length > 0 ? new Set(wanted) : null;
 
-    const matches = contacts.filter((c) => {
+    const candidates = contacts.filter((c) => {
       if (!c) return false;
-      if (!c.verifiedAt) return false;
+      if (String(c.status || "") === "invalid") return false;
       if (companyId) {
         if (String(c.companyId || "") !== companyId) return false;
       } else {
@@ -393,6 +393,9 @@ const server = http.createServer(async (req, res) => {
       return true;
     });
 
+    const verifiedOnly = candidates.filter((c) => String(c.status || "") === "verified" || Boolean(c.verifiedAt));
+    const matches = verifiedOnly.length > 0 ? verifiedOnly : candidates;
+
     const byBusiness = new Map();
     for (const c of matches) {
       const bKey = normalizeBusiness(c.business || "");
@@ -403,9 +406,22 @@ const server = http.createServer(async (req, res) => {
 
     const items = Array.from(byBusiness.entries())
       .map(([b, list]) => {
+        const statusRank = (x) => {
+          const s = String(x?.status || "");
+          if (s === "verified") return 0;
+          if (!s && x?.verifiedAt) return 0;
+          if (s === "candidate") return 1;
+          return 2;
+        };
         const sorted = list
           .slice()
-          .sort((a, b) => (b.successCount || 0) - (a.successCount || 0) || (b.verifiedAt || 0) - (a.verifiedAt || 0));
+          .sort(
+            (a, b) =>
+              statusRank(a) - statusRank(b) ||
+              (b.successCount || 0) - (a.successCount || 0) ||
+              (b.verifiedAt || 0) - (a.verifiedAt || 0) ||
+              (b.updatedAt || 0) - (a.updatedAt || 0)
+          );
         return {
           business: b,
           contacts: sorted.slice(0, limit).map((x) => ({
@@ -417,8 +433,11 @@ const server = http.createServer(async (req, res) => {
             contactTitle: x.contactTitle || "",
             contactChannel: x.contactChannel || "",
             clue: x.clue || "",
+            status: String(x.status || ""),
             verifiedAt: x.verifiedAt || 0,
-            successCount: x.successCount || 0
+            successCount: x.successCount || 0,
+            failCount: x.failCount || 0,
+            lastFailureAt: x.lastFailureAt || 0
           }))
         };
       })
@@ -751,6 +770,7 @@ const server = http.createServer(async (req, res) => {
 
     const body = await readJson(req).catch(() => null);
     const outcome = typeof body?.outcome === "string" ? body.outcome.trim() : "";
+    const reason = typeof body?.reason === "string" ? body.reason.trim() : "";
     if (outcome !== "success" && outcome !== "fail") return json(res, 400, { error: "outcome must be success|fail" });
     if (intro.resolvedAt) return json(res, 400, { error: "already resolved" });
 
@@ -780,6 +800,22 @@ const server = http.createServer(async (req, res) => {
     } else {
       stats.points += 1;
       stats.introFailCount += 1;
+      const companyId = String(r.companyId || "").trim();
+      const companyName = String(r.companyName || "").trim();
+      const channel = String(intro.contactChannel || "").trim();
+      if ((companyId || companyName) && channel && Array.isArray(r.tags)) {
+        const businesses = r.tags.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 10);
+        for (const business of businesses) {
+          upsertFailedContactFromIntroduction({
+            companyId,
+            companyName,
+            business,
+            intro,
+            requestId: r.id,
+            reason
+          });
+        }
+      }
     }
     userStats.set(intro.introducerId, stats);
 
@@ -1343,8 +1379,10 @@ function upsertVerifiedContactFromIntroduction(input) {
     if (intro.contactTitle) existing.contactTitle = String(intro.contactTitle || "").trim().slice(0, 120);
     existing.contactChannel = contactChannel.slice(0, 200);
     if (intro.clue) existing.clue = String(intro.clue || "").trim().slice(0, 1000);
+    existing.status = "verified";
     existing.verifiedAt = now;
     existing.successCount = Number(existing.successCount || 0) + 1;
+    existing.failCount = Number(existing.failCount || 0);
     existing.lastSourceIntroId = String(intro.id || "");
     existing.lastRequestId = requestId;
     existing.updatedAt = now;
@@ -1365,8 +1403,88 @@ function upsertVerifiedContactFromIntroduction(input) {
     clue: String(intro.clue || "").trim().slice(0, 1000),
     createdAt: now,
     updatedAt: now,
+    status: "verified",
     verifiedAt: now,
     successCount: 1,
+    failCount: 0,
+    lastFailureAt: 0,
+    lastFailureReason: "",
+    createdByUserId: String(intro.introducerId || ""),
+    lastSourceIntroId: String(intro.id || ""),
+    lastRequestId: requestId
+  };
+  markDirty();
+  contacts.push(item);
+  return item;
+}
+
+function upsertFailedContactFromIntroduction(input) {
+  const companyId = String(input?.companyId || "").trim();
+  const companyName = String(input?.companyName || "").trim();
+  const business = String(input?.business || "").trim();
+  const intro = input?.intro;
+  const requestId = String(input?.requestId || "").trim();
+  const reason = String(input?.reason || "").trim();
+  if ((!companyId && !companyName) || !business || !intro) return null;
+  const contactChannel = String(intro.contactChannel || "").trim();
+  if (!contactChannel) return null;
+
+  const businessKey = normalizeBusiness(business);
+  const channelKey = normalizeChannel(contactChannel);
+  const primaryKey = companyId ? `${companyId}|${businessKey}|${channelKey}` : `${normalizeCompany(companyName)}|${businessKey}|${channelKey}`;
+  const fallbackKey = companyId && companyName ? `${normalizeCompany(companyName)}|${businessKey}|${channelKey}` : "";
+  const existing =
+    contacts.find((c) => String(c?.key || "") === primaryKey) ||
+    (fallbackKey ? contacts.find((c) => String(c?.key || "") === fallbackKey) : null);
+  const now = Date.now();
+
+  const classify = (r) => {
+    if (r === "left" || r === "refused") return "invalid";
+    if (r === "unreachable") return "candidate";
+    if (r === "mismatch") return "candidate";
+    return "";
+  };
+  const nextStatus = classify(reason);
+
+  if (existing) {
+    if (companyId) existing.companyId = companyId;
+    existing.companyName = companyName;
+    existing.business = business;
+    if (intro.contactName) existing.contactName = String(intro.contactName || "").trim().slice(0, 80);
+    if (intro.contactTitle) existing.contactTitle = String(intro.contactTitle || "").trim().slice(0, 120);
+    existing.contactChannel = contactChannel.slice(0, 200);
+    if (intro.clue) existing.clue = String(intro.clue || "").trim().slice(0, 1000);
+    existing.failCount = Number(existing.failCount || 0) + 1;
+    existing.lastFailureAt = now;
+    existing.lastFailureReason = reason;
+    if (nextStatus) existing.status = nextStatus;
+    else if (!existing.status) existing.status = "candidate";
+    existing.lastSourceIntroId = String(intro.id || "");
+    existing.lastRequestId = requestId;
+    existing.updatedAt = now;
+    existing.key = primaryKey;
+    markDirty();
+    return existing;
+  }
+
+  const item = {
+    id: `ct_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    key: primaryKey,
+    companyId,
+    companyName,
+    business,
+    contactName: String(intro.contactName || "").trim().slice(0, 80),
+    contactTitle: String(intro.contactTitle || "").trim().slice(0, 120),
+    contactChannel: contactChannel.slice(0, 200),
+    clue: String(intro.clue || "").trim().slice(0, 1000),
+    createdAt: now,
+    updatedAt: now,
+    status: nextStatus || "candidate",
+    verifiedAt: 0,
+    successCount: 0,
+    failCount: 1,
+    lastFailureAt: now,
+    lastFailureReason: reason,
     createdByUserId: String(intro.introducerId || ""),
     lastSourceIntroId: String(intro.id || ""),
     lastRequestId: requestId
