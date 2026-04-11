@@ -28,6 +28,9 @@
       <button size="mini" style="margin-left: 12rpx;" bindtap="onTapToggleConflictScope" wx:if="{{conflictKeys && conflictKeys.length > 0}}">
         {{showAllConflicts ? i18n["admin.showFromLastRun"] : i18n["admin.showAllConflicts"]}}
       </button>
+      <button size="mini" style="margin-left: 12rpx;" type="warn" bindtap="onTapMergeAll" wx:if="{{conflicts && conflicts.length > 0}}">
+        {{i18n["admin.mergeAll"]}}
+      </button>
       <button size="mini" bindtap="refreshConflicts">{{i18n["admin.refreshConflicts"]}}</button>
     </view>
     <view class="muted" style="margin-top: 12rpx;" wx:if="{{!conflicts || conflicts.length === 0}}">-</view>

@@ -14,6 +14,9 @@ const I18N_KEYS = [
   "admin.showAllConflicts",
   "admin.showFromLastRun",
   "admin.merge",
+  "admin.mergeAll",
+  "admin.mergeAllConfirm",
+  "admin.mergeAllResult",
   "admin.keep",
   "admin.remove",
   "admin.done",
@@ -181,6 +184,62 @@ Page({
               const conflictKeys = Array.isArray(res.contactConflicts) ? res.contactConflicts.map((x: any) => String(x?.key || "").trim()).filter(Boolean).slice(0, 50) : [];
               this.setData({ lastNormalizeText: line, conflictKeys, showAllConflicts: conflictKeys.length === 0 });
             });
+          })
+          .catch(() => {
+            wx.showToast({ title: t("common.failed"), icon: "none" });
+          })
+          .finally(() => this.setData({ loading: false }));
+      }
+    });
+  },
+  onTapMergeAll() {
+    if (this.data.loading) return;
+    const key = getStoredAdminKey() || String(this.data.adminKeyInput || "").trim();
+    if (!key) return;
+    const groups = Array.isArray(this.data.conflicts) ? this.data.conflicts : [];
+    if (groups.length === 0) return;
+    wx.showModal({
+      title: t("admin.mergeAll"),
+      content: t("admin.mergeAllConfirm", { count: String(groups.length) }),
+      success: (r) => {
+        if (!r.confirm) return;
+        this.setData({ loading: true });
+        let okCount = 0;
+        let failCount = 0;
+        Promise.resolve()
+          .then(() =>
+            groups.reduce((p, g) => {
+              return p.then(() => {
+                const keepId = String(g.keepId || "").trim();
+                const removeIds = (Array.isArray(g.ids) ? g.ids : []).filter((id) => id !== keepId);
+                if (!keepId || removeIds.length === 0) {
+                  failCount += 1;
+                  return;
+                }
+                return adminMergeContacts(key, keepId, removeIds)
+                  .then((ok) => {
+                    if (ok) okCount += 1;
+                    else failCount += 1;
+                  })
+                  .catch(() => {
+                    failCount += 1;
+                  });
+              });
+            }, Promise.resolve())
+          )
+          .then(() => adminNormalizeChannels(key, true))
+          .then((res) => {
+            if (res) {
+              const line = `dryRun=true users=${res.usersUpdated || 0} requests=${res.requestsUpdated || 0} intros=${res.introductionsUpdated || 0} contacts=${res.contactsUpdated || 0} conflicts=${res.contactConflictCount || 0}`;
+              const conflictKeys = Array.isArray(res.contactConflicts)
+                ? res.contactConflicts.map((x: any) => String(x?.key || "").trim()).filter(Boolean).slice(0, 50)
+                : [];
+              this.setData({ lastNormalizeText: line, conflictKeys, showAllConflicts: conflictKeys.length === 0 });
+            }
+          })
+          .then(() => this.refreshConflicts())
+          .then(() => {
+            wx.showToast({ title: t("admin.mergeAllResult", { ok: String(okCount), fail: String(failCount) }), icon: "none" });
           })
           .catch(() => {
             wx.showToast({ title: t("common.failed"), icon: "none" });
