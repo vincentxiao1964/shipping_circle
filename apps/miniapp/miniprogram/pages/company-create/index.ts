@@ -69,7 +69,15 @@ Page({
       .map((x) => x.trim())
       .filter(Boolean)
       .slice(0, 20);
-    const roles = businesses.map((b) => ({ business: b, title: "负责人" }));
+    const fallbackBusinesses =
+      businesses.length > 0
+        ? businesses
+        : this.data.tagsInput
+            .split(",")
+            .map((x) => x.trim())
+            .filter(Boolean)
+            .slice(0, 20);
+    const roles = fallbackBusinesses.map((b) => ({ business: b, title: "负责人" }));
 
     if (!name || roles.length === 0) {
       wx.showToast({ title: t("common.failed"), icon: "none" });
