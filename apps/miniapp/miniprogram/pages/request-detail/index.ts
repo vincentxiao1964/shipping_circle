@@ -11,6 +11,7 @@ import {
   getRequest,
   listRequestClaims,
   nudgeRequestClaim,
+  submitClaimQuote,
   pingIntroducer,
   updateRequest,
   resolveIntroduction,
@@ -87,6 +88,10 @@ const I18N_KEYS = [
   "request.claimAck",
   "request.claimNudge",
   "request.claimNudged",
+  "request.claimQuote",
+  "request.claimQuoteDone",
+  "request.quoteNoteTitle",
+  "request.quoteNoteHint",
   "request.claimComplete",
   "request.claimComplain",
   "request.complainReasonTitle",
@@ -496,6 +501,34 @@ Page({
       .catch(() => {
         wx.showToast({ title: t("common.failed"), icon: "none" });
       });
+  },
+  onTapClaimQuote() {
+    if (!this.data.item) return;
+    if (this.data.item.isMine) return;
+    if (!this.data.myClaim || this.data.myClaim.status !== "claimed") return;
+    if (!getToken()) {
+      wx.navigateTo({ url: "/pages/login/index" });
+      return;
+    }
+    wx.showModal({
+      title: t("request.quoteNoteTitle"),
+      editable: true,
+      placeholderText: t("request.quoteNoteHint"),
+      success: (r) => {
+        if (!r.confirm) return;
+        const note = String((r as any).content || "").trim();
+        if (!note) return;
+        submitClaimQuote(this.data.item!.id, this.data.myClaim!.id, note)
+          .then((ok) => {
+            if (!ok) throw new Error("failed");
+            wx.showToast({ title: t("request.claimQuoteDone"), icon: "success" });
+            this.load();
+          })
+          .catch(() => {
+            wx.showToast({ title: t("common.failed"), icon: "none" });
+          });
+      }
+    });
   },
   getClaimStatusLabel(status: string, acknowledgedAt?: number) {
     if (status === "claimed" && !acknowledgedAt) return t("request.claimStatusUnacked");

@@ -42,6 +42,7 @@ const CLAIM_NUDGE_AFTER_MS = Number(process.env.CLAIM_NUDGE_AFTER_MS || 24 * 60 
 const CLAIM_NUDGE_PENALTY_POINTS = Number(process.env.CLAIM_NUDGE_PENALTY_POINTS || 1);
 const CLAIM_NUDGE_MIN_INTERVAL_MS = Number(process.env.CLAIM_NUDGE_MIN_INTERVAL_MS || 30 * 60 * 1000);
 const MAX_NUDGES_PER_CLAIM = Number(process.env.MAX_NUDGES_PER_CLAIM || 3);
+const CLAIM_COMPLETE_REQUIRE_QUOTE = String(process.env.CLAIM_COMPLETE_REQUIRE_QUOTE || "") === "1";
 
 function autoExpireClaims(now) {
   const ts = typeof now === "number" ? now : Date.now();
@@ -126,6 +127,7 @@ const server = http.createServer(async (req, res) => {
         "GET /requests/:id/claims",
         "POST /requests/:id/claims/:claimId/ack",
         "POST /requests/:id/claims/:claimId/nudge",
+        "POST /requests/:id/claims/:claimId/quote",
         "POST /requests/:id/claims/:claimId/complete",
         "POST /requests/:id/claims/:claimId/complain",
         "POST /requests/:id/ping",
@@ -1442,6 +1444,8 @@ const server = http.createServer(async (req, res) => {
       acknowledgedAt: 0,
       nudgeCount: 0,
       lastNudgedAt: 0,
+      quoteNote: "",
+      quoteSubmittedAt: 0,
       expiredAt: 0,
       completedAt: 0,
       complainedAt: 0
@@ -1489,6 +1493,8 @@ const server = http.createServer(async (req, res) => {
         acknowledgedAt: c.acknowledgedAt || 0,
         nudgeCount: Number(c.nudgeCount || 0),
         lastNudgedAt: Number(c.lastNudgedAt || 0),
+        quoteNote: String(c.quoteNote || ""),
+        quoteSubmittedAt: Number(c.quoteSubmittedAt || 0),
         expiredAt: c.expiredAt || 0,
         completedAt: c.completedAt || 0,
         complainedAt: c.complainedAt || 0
@@ -1551,7 +1557,8 @@ const server = http.createServer(async (req, res) => {
     claim.lastNudgedAt = now;
     claim.updatedAt = now;
 
-    const overdue = now - Number(claim.acknowledgedAt || 0) >= Math.max(0, CLAIM_NUDGE_AFTER_MS);
+    const overdue =
+      now - Number(claim.acknowledgedAt || 0) >= Math.max(0, CLAIM_NUDGE_AFTER_MS) && !Number(claim.quoteSubmittedAt || 0);
     let penaltyPoints = 0;
     if (overdue) {
       penaltyPoints = Math.max(0, CLAIM_NUDGE_PENALTY_POINTS);
@@ -1579,6 +1586,41 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { ok: true, duplicated: false, overdue, penaltyPoints, nudgeCount: nextCount });
   }
 
+  const requestClaimQuoteMatch = url.pathname.match(/^\/requests\/([^/]+)\/claims\/([^/]+)\/quote$/);
+  if (req.method === "POST" && requestClaimQuoteMatch) {
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!userId) return json(res, 401, { error: "Unauthorized" });
+    const requestId = decodeURIComponent(requestClaimQuoteMatch[1]);
+    const claimId = decodeURIComponent(requestClaimQuoteMatch[2]);
+    const r = requests.find((x) => x.id === requestId);
+    if (!r) return json(res, 404, { error: "Not Found" });
+    const claim = requestClaims.find((c) => c && c.id === claimId && c.requestId === r.id);
+    if (!claim) return json(res, 404, { error: "Not Found" });
+    if (claim.claimerId !== userId) return json(res, 403, { error: "Forbidden" });
+    if (claim.status !== "claimed") return json(res, 400, { error: "cannot quote" });
+
+    const body = await readJson(req).catch(() => null);
+    const quoteNote = typeof body?.quoteNote === "string" ? body.quoteNote.trim().slice(0, 500) : "";
+    if (!quoteNote) return json(res, 400, { error: "quoteNote required" });
+
+    markDirty();
+    const now = Date.now();
+    claim.quoteNote = quoteNote;
+    claim.quoteSubmittedAt = now;
+    claim.updatedAt = now;
+    notifications.push({
+      id: `n_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      toUserId: claim.ownerId,
+      type: "system",
+      title: "Quote submitted / 已提交报价",
+      content: `${ensureUser(userId).displayName}: ${r.title}`.slice(0, 500),
+      createdAt: now,
+      readAt: null,
+      data: { kind: "claimQuote", requestId: r.id, claimId: claim.id, fromUserId: userId }
+    });
+    return json(res, 200, { ok: true, quoteSubmittedAt: now });
+  }
+
   const requestClaimCompleteMatch = url.pathname.match(/^\/requests\/([^/]+)\/claims\/([^/]+)\/complete$/);
   if (req.method === "POST" && requestClaimCompleteMatch) {
     const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
@@ -1591,6 +1633,7 @@ const server = http.createServer(async (req, res) => {
     const claim = requestClaims.find((c) => c && c.id === claimId && c.requestId === r.id);
     if (!claim) return json(res, 404, { error: "Not Found" });
     if (claim.status !== "claimed") return json(res, 400, { error: "cannot complete" });
+    if (CLAIM_COMPLETE_REQUIRE_QUOTE && !Number(claim.quoteSubmittedAt || 0)) return json(res, 400, { error: "quote required" });
 
     markDirty();
     const now = Date.now();

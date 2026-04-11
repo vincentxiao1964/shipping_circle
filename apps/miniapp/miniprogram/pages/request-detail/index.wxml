@@ -52,6 +52,14 @@
       <button size="mini" style="margin-left: 12rpx;" wx:if="{{myClaim.status === 'claimed' && !myClaim.acknowledgedAt}}" bindtap="onTapClaimAck">
         {{i18n["request.claimAck"]}}
       </button>
+      <button
+        size="mini"
+        style="margin-left: 12rpx;"
+        wx:if="{{myClaim.status === 'claimed' && myClaim.acknowledgedAt}}"
+        bindtap="onTapClaimQuote"
+      >
+        {{i18n["request.claimQuote"]}}
+      </button>
     </view>
   </view>
 
@@ -67,6 +75,9 @@
       <view class="row">
         <view style="font-weight: 600;">{{c.claimerDisplayName || c.claimerId}}</view>
         <view class="muted" style="font-size: 24rpx;">{{getClaimStatusLabel(c.status, c.acknowledgedAt)}}</view>
+      </view>
+      <view class="muted" style="margin-top: 8rpx; white-space: pre-wrap;" wx:if="{{c.quoteNote}}">
+        {{c.quoteNote}}
       </view>
       <view class="row" style="margin-top: 12rpx;" wx:if="{{c.status === 'claimed'}}">
         <button size="mini" type="primary" data-id="{{c.id}}" bindtap="onTapClaimComplete">{{i18n["request.claimComplete"]}}</button>

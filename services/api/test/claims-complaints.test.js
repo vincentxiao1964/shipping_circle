@@ -189,6 +189,88 @@ test("claims: nudge after ack applies light penalty", async () => {
   }
 });
 
+test("claims: quote prevents overdue nudge penalty and can be required for completion", async () => {
+  const { child, port } = await startServer({
+    PORT: "0",
+    TOKEN_TTL_MS: "60000",
+    REFRESH_GRACE_MS: "60000",
+    CLAIM_NUDGE_AFTER_MS: "1",
+    CLAIM_NUDGE_MIN_INTERVAL_MS: "0",
+    CLAIM_NUDGE_PENALTY_POINTS: "1",
+    CLAIM_COMPLETE_REQUIRE_QUOTE: "1"
+  });
+  try {
+    const base = `http://localhost:${port}`;
+
+    const owner = await fetch(`${base}/auth/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "owner_quote" })
+    }).then((r) => r.json());
+    const worker = await fetch(`${base}/auth/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "worker_quote" })
+    }).then((r) => r.json());
+
+    const reqResp = await fetch(`${base}/requests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${owner.token}` },
+      body: JSON.stringify({ title: "need quote", companyName: "Demo Co", content: "x", tags: ["订舱"] })
+    });
+    assert.equal(reqResp.status, 201);
+    const created = await reqResp.json();
+    const requestId = created.item.id;
+
+    const claimResp = await fetch(`${base}/requests/${encodeURIComponent(requestId)}/claim`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${worker.token}` }
+    });
+    assert.equal(claimResp.status, 201);
+    const claim = await claimResp.json();
+    const claimId = claim.item.id;
+    assert.ok(claimId);
+
+    const ackResp = await fetch(`${base}/requests/${encodeURIComponent(requestId)}/claims/${encodeURIComponent(claimId)}/ack`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${worker.token}` }
+    });
+    assert.equal(ackResp.status, 200);
+
+    const completeNoQuote = await fetch(`${base}/requests/${encodeURIComponent(requestId)}/claims/${encodeURIComponent(claimId)}/complete`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${owner.token}` }
+    });
+    assert.equal(completeNoQuote.status, 400);
+
+    const quoteResp = await fetch(`${base}/requests/${encodeURIComponent(requestId)}/claims/${encodeURIComponent(claimId)}/quote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${worker.token}` },
+      body: JSON.stringify({ quoteNote: "USD 2000 all-in, valid 7d" })
+    });
+    assert.equal(quoteResp.status, 200);
+
+    await new Promise((r) => setTimeout(r, 5));
+    const nudgeResp = await fetch(`${base}/requests/${encodeURIComponent(requestId)}/claims/${encodeURIComponent(claimId)}/nudge`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${owner.token}` }
+    });
+    assert.equal(nudgeResp.status, 200);
+    const nudge = await nudgeResp.json();
+    assert.equal(nudge.ok, true);
+    assert.equal(nudge.overdue, false);
+    assert.equal(nudge.penaltyPoints, 0);
+
+    const completeResp = await fetch(`${base}/requests/${encodeURIComponent(requestId)}/claims/${encodeURIComponent(claimId)}/complete`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${owner.token}` }
+    });
+    assert.equal(completeResp.status, 200);
+  } finally {
+    await stopServer(child);
+  }
+});
+
 test("claims: ack timeout auto expires and active limit applies", async () => {
   const { child, port } = await startServer({
     PORT: "0",

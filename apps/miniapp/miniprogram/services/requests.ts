@@ -320,6 +320,21 @@ export async function nudgeRequestClaim(requestId: string, claimId: string): Pro
   }
 }
 
+export async function submitClaimQuote(requestId: string, claimId: string, quoteNote: string): Promise<boolean> {
+  const rid = requestId.trim();
+  const cid = claimId.trim();
+  const note = String(quoteNote || "").trim();
+  if (!rid || !cid || !note) return false;
+  try {
+    const res = await requestJson<{ ok: boolean }>("POST", `/requests/${encodeURIComponent(rid)}/claims/${encodeURIComponent(cid)}/quote`, {
+      quoteNote: note
+    });
+    return Boolean(res?.ok);
+  } catch {
+    return false;
+  }
+}
+
 export async function pingIntroducer(requestId: string, toUserId: string): Promise<{ duplicated: boolean } | null> {
   const id = requestId.trim();
   const uid = String(toUserId || "").trim();
