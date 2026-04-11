@@ -23,11 +23,6 @@ export function setApiBaseUrl(baseUrl: string) {
 
 export function getToken(): string | null {
   const token = safeGetStorage("sc_token");
-  const expiresAt = safeGetStorage("sc_token_expiresAt");
-  if (typeof expiresAt === "number" && expiresAt > 0 && Date.now() > expiresAt) {
-    clearToken();
-    return null;
-  }
   return typeof token === "string" && token ? token : null;
 }
 
@@ -58,28 +53,59 @@ export async function requestJson<TResponse>(
   const url = `${baseUrl}${path}`;
   const auth = token ?? getToken();
 
+  try {
+    return await requestJsonOnce<TResponse>({ method, url, data, auth });
+  } catch (e) {
+    const statusCode = (e as any)?.statusCode as number | undefined;
+    if (statusCode !== 401) throw e;
+    if (!auth) {
+      clearToken();
+      throw e;
+    }
+    if (path === "/auth/wechat" || path === "/auth/refresh" || path === "/auth/logout") {
+      clearToken();
+      throw e;
+    }
+    const refreshed = await refreshToken(auth).catch(() => null);
+    if (!refreshed?.token) {
+      clearToken();
+      throw e;
+    }
+    setToken(refreshed.token, refreshed.expiresAt);
+    return requestJsonOnce<TResponse>({ method, url, data, auth: refreshed.token });
+  }
+}
+
+type RequestOnceInput = { method: HttpMethod; url: string; data?: RequestData; auth?: string | null };
+
+function requestJsonOnce<TResponse>(input: RequestOnceInput): Promise<TResponse> {
   return new Promise<TResponse>((resolve, reject) => {
     wx.request({
-      method,
-      url,
-      data,
+      method: input.method,
+      url: input.url,
+      data: input.data,
       header: {
         "Content-Type": "application/json",
-        ...(auth ? { Authorization: `Bearer ${auth}` } : {})
+        ...(input.auth ? { Authorization: `Bearer ${input.auth}` } : {})
       },
       success: (res) => {
         if (res.statusCode >= 200 && res.statusCode < 300) {
           resolve(res.data as TResponse);
           return;
         }
-        if (res.statusCode === 401) {
-          clearToken();
-        }
-        reject(new Error(`HTTP ${res.statusCode}`));
+        const err: any = new Error(`HTTP ${res.statusCode}`);
+        err.statusCode = res.statusCode;
+        reject(err);
       },
       fail: (err) => reject(err)
     });
   });
+}
+
+async function refreshToken(token: string): Promise<{ token: string; expiresAt?: number }> {
+  const { baseUrl } = getApiConfig();
+  const url = `${baseUrl}/auth/refresh`;
+  return requestJsonOnce<{ token: string; expiresAt?: number }>({ method: "POST", url, data: {}, auth: token });
 }
 
 function safeGetStorage(key: string): unknown {

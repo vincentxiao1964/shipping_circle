@@ -18,7 +18,8 @@ const companyFollows = store.companyFollows;
 const notifications = store.notifications;
 const follows = store.follows;
 const MAX_PORT_TRIES = 20;
-const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const TOKEN_TTL_MS = Number(process.env.TOKEN_TTL_MS || 30 * 24 * 60 * 60 * 1000);
+const REFRESH_GRACE_MS = Number(process.env.REFRESH_GRACE_MS || 24 * 60 * 60 * 1000);
 
 const server = http.createServer(async (req, res) => {
   setCors(res);
@@ -43,6 +44,7 @@ const server = http.createServer(async (req, res) => {
       endpoints: [
         "GET /health",
         "POST /auth/wechat",
+        "POST /auth/refresh",
         "POST /auth/logout",
         "GET /companies",
         "POST /companies",
@@ -94,12 +96,7 @@ const server = http.createServer(async (req, res) => {
     const openid = await getWeChatOpenId(code);
     const userId = `u_${hash(openid)}`;
     revokeAllUserTokens(userId, tokenToUser, tokenMeta, userTokens);
-    const token = randomUUID();
-    tokenToUser.set(token, userId);
-    tokenMeta.set(token, { userId, createdAt: Date.now(), expiresAt: Date.now() + TOKEN_TTL_MS });
-    const userSet = userTokens.get(userId) || new Set();
-    userSet.add(token);
-    userTokens.set(userId, userSet);
+    const { token, expiresAt } = issueTokenForUser(userId);
     ensureUser(userId, { openid });
     if (!follows.has(userId)) follows.set(userId, new Set());
     notifications.push({
@@ -115,9 +112,23 @@ const server = http.createServer(async (req, res) => {
 
     return json(res, 200, {
       token,
-      expiresAt: tokenMeta.get(token).expiresAt,
+      expiresAt,
       user: { id: userId, displayName: users.get(userId).displayName }
     });
+  }
+
+  if (req.method === "POST" && url.pathname === "/auth/refresh") {
+    const token = getAuthToken(req);
+    if (!token) return json(res, 401, { error: "Unauthorized" });
+    const meta = tokenMeta.get(token);
+    const userId = meta?.userId || tokenToUser.get(token) || null;
+    if (!userId || !meta) return json(res, 401, { error: "Unauthorized" });
+    const now = Date.now();
+    const expiresAt = typeof meta.expiresAt === "number" ? meta.expiresAt : 0;
+    if (expiresAt && now > expiresAt + REFRESH_GRACE_MS) return json(res, 401, { error: "Unauthorized" });
+    revokeToken(token, tokenToUser, tokenMeta, userTokens);
+    const next = issueTokenForUser(userId);
+    return json(res, 200, { token: next.token, expiresAt: next.expiresAt });
   }
 
   if (req.method === "POST" && url.pathname === "/auth/logout") {
@@ -1019,7 +1030,8 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  process.stdout.write(`api listening on http://localhost:${PORT}\n`);
+  const port = typeof server.address === "function" ? server.address()?.port : PORT;
+  process.stdout.write(`api listening on http://localhost:${port}\n`);
 });
 
 let currentPort = PORT;
@@ -1031,7 +1043,8 @@ server.on("error", (err) => {
     process.stdout.write(`port ${currentPort - 1} in use, trying http://localhost:${currentPort}\n`);
     setTimeout(() => {
       server.listen(currentPort, () => {
-        process.stdout.write(`api listening on http://localhost:${currentPort}\n`);
+        const port = typeof server.address === "function" ? server.address()?.port : currentPort;
+        process.stdout.write(`api listening on http://localhost:${port}\n`);
       });
     }, 50);
     return;
@@ -1109,11 +1122,21 @@ function getAuthUserId(req, tokenToUserMap, tokenMetaMap, userTokensMap) {
   const token = getAuthToken(req);
   if (!token) return null;
   const meta = tokenMetaMap.get(token);
-  if (meta && typeof meta.expiresAt === "number" && Date.now() > meta.expiresAt) {
-    revokeToken(token, tokenToUserMap, tokenMetaMap, userTokensMap);
-    return null;
-  }
+  if (meta && typeof meta.expiresAt === "number" && Date.now() > meta.expiresAt) return null;
   return tokenToUserMap.get(token) || meta?.userId || null;
+}
+
+function issueTokenForUser(userId) {
+  markDirty();
+  const token = randomUUID();
+  const createdAt = Date.now();
+  const expiresAt = createdAt + TOKEN_TTL_MS;
+  tokenToUser.set(token, userId);
+  tokenMeta.set(token, { userId, createdAt, expiresAt });
+  const userSet = userTokens.get(userId) || new Set();
+  userSet.add(token);
+  userTokens.set(userId, userSet);
+  return { token, expiresAt };
 }
 
 function viewPostDetail(post, viewerId) {
