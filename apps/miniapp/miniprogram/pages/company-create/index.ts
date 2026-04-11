@@ -22,10 +22,17 @@ Page({
     region: "",
     tagsInput: "",
     businessesInput: "",
+    returnTo: "",
     loading: false
   },
-  onLoad() {
+  onLoad(query: Record<string, string | undefined>) {
     syncPageI18n(this, I18N_KEYS);
+    const name = query.name ? String(query.name) : "";
+    const businessesInput = query.businesses ? String(query.businesses) : "";
+    const returnTo = query.returnTo ? String(query.returnTo) : "";
+    if (name || businessesInput || returnTo) {
+      this.setData({ name, businessesInput, returnTo });
+    }
   },
   onShow() {
     syncPageI18n(this, I18N_KEYS);
@@ -73,6 +80,14 @@ Page({
     createCompany({ name, region, tags, roles })
       .then((item) => {
         wx.showToast({ title: t("common.ok"), icon: "success" });
+        if (this.data.returnTo === "back") {
+          try {
+            const ch = (this as any).getOpenerEventChannel ? (this as any).getOpenerEventChannel() : null;
+            if (ch && ch.emit) ch.emit("created", { id: item.id, name: item.name });
+          } catch {}
+          wx.navigateBack();
+          return;
+        }
         wx.redirectTo({ url: `/pages/company-detail/index?id=${encodeURIComponent(item.id)}` });
       })
       .catch(() => {
@@ -83,4 +98,3 @@ Page({
       });
   }
 });
-

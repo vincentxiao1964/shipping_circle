@@ -7,6 +7,7 @@ const I18N_KEYS = [
   "request.editTitle",
   "request.title",
   "request.companyName",
+  "company.create",
   "request.tags",
   "request.tagsPick",
   "request.tagsCustom",
@@ -87,6 +88,27 @@ Page({
       companySuggestItems: []
     });
     wx.showToast({ title: t("request.companyMatched", { name: name || this.data.companyName }), icon: "none" });
+  },
+  onTapCreateCompany() {
+    const name = this.data.companyName.trim();
+    const businesses = (this.data.businesses || []).filter(Boolean).slice(0, 10).join(",");
+    wx.navigateTo({
+      url: `/pages/company-create/index?name=${encodeURIComponent(name)}&businesses=${encodeURIComponent(businesses)}&returnTo=back`,
+      events: {
+        created: (item: any) => {
+          const id = String(item?.id || "").trim();
+          const cname = String(item?.name || "").trim();
+          if (!id) return;
+          this.setData({
+            companyId: id,
+            companyName: cname || this.data.companyName,
+            companySuggestVisible: false,
+            companySuggestItems: []
+          });
+          wx.showToast({ title: t("request.companyMatched", { name: cname || this.data.companyName }), icon: "none" });
+        }
+      }
+    });
   },
   onInputTags(e: WechatMiniprogram.Input) {
     const tagsInput = e.detail.value;
@@ -231,10 +253,10 @@ Page({
         const items = Array.isArray(page?.items) ? page.items : [];
         if (this.data.companyId) return;
         if (this.data.companyName.trim() !== q) return;
-        this.setData({ companySuggestItems: items, companySuggestVisible: items.length > 0 });
+        this.setData({ companySuggestItems: items, companySuggestVisible: true });
       })
       .catch(() => {
-        this.setData({ companySuggestItems: [], companySuggestVisible: false });
+        this.setData({ companySuggestItems: [], companySuggestVisible: true });
       });
   }
 });

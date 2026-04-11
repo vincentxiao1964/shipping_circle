@@ -34,6 +34,12 @@
         <view class="muted" style="font-size: 24rpx;" wx:if="{{item.region}}">{{item.region}}</view>
       </view>
     </view>
+    <view class="card" style="margin-top: 12rpx;" wx:if="{{companySuggestVisible}}">
+      <view class="row">
+        <view class="muted">{{i18n["company.create"]}}：{{companyName}}</view>
+        <button size="mini" type="primary" catchtap="onTapCreateCompany">{{i18n["company.create"]}}</button>
+      </view>
+    </view>
     <view class="muted" style="margin-top: 12rpx;">{{i18n["request.tags"]}}</view>
     <input
       style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
