@@ -36,13 +36,15 @@ export async function adminNormalizeChannels(adminKey: string, dryRun: boolean) 
   }
 }
 
-export async function adminListContactConflicts(adminKey: string, limit = 50): Promise<ContactConflictGroup[]> {
+export async function adminListContactConflicts(adminKey: string, limit = 50, keys?: string[]): Promise<ContactConflictGroup[]> {
   const key = String(adminKey || "").trim();
   if (!key) return [];
+  const keyParam = Array.isArray(keys) ? keys.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 50) : [];
+  const qsKeys = keyParam.length > 0 ? `&keys=${encodeURIComponent(keyParam.join(","))}` : "";
   try {
     const res = await requestJsonWithHeaders<{ items: ContactConflictGroup[] }>(
       "GET",
-      `/admin/contacts/conflicts?limit=${encodeURIComponent(String(limit))}`,
+      `/admin/contacts/conflicts?limit=${encodeURIComponent(String(limit))}${qsKeys}`,
       undefined,
       { "x-admin-key": key },
       null
@@ -71,4 +73,3 @@ export async function adminMergeContacts(adminKey: string, keepId: string, remov
     return false;
   }
 }
-

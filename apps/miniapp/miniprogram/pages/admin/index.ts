@@ -11,6 +11,8 @@ const I18N_KEYS = [
   "admin.normalizeApply",
   "admin.conflicts",
   "admin.refreshConflicts",
+  "admin.showAllConflicts",
+  "admin.showFromLastRun",
   "admin.merge",
   "admin.keep",
   "admin.remove",
@@ -52,10 +54,11 @@ Page({
     localeVersion: 0,
     i18n: {},
     adminKeyInput: "",
-    dryRun: true,
     lastNormalizeText: "",
     loading: false,
-    conflicts: [] as (ContactConflictGroup & { keepId: string })[]
+    conflicts: [] as (ContactConflictGroup & { keepId: string })[],
+    conflictKeys: [] as string[],
+    showAllConflicts: true
   },
   onLoad() {
     syncPageI18n(this, I18N_KEYS);
@@ -80,9 +83,6 @@ Page({
     setStoredAdminKey(k);
     wx.showToast({ title: t("common.ok"), icon: "success" });
   },
-  onTapToggleDryRun() {
-    this.setData({ dryRun: !this.data.dryRun });
-  },
   onTapNormalizeRun() {
     if (this.data.loading) return;
     const key = getStoredAdminKey() || String(this.data.adminKeyInput || "").trim();
@@ -92,7 +92,9 @@ Page({
       .then((res) => {
         if (!res) throw new Error("failed");
         const line = `dryRun=true users=${res.usersUpdated || 0} requests=${res.requestsUpdated || 0} intros=${res.introductionsUpdated || 0} contacts=${res.contactsUpdated || 0} conflicts=${res.contactConflictCount || 0}`;
-        this.setData({ lastNormalizeText: line });
+        const conflictKeys = Array.isArray(res.contactConflicts) ? res.contactConflicts.map((x: any) => String(x?.key || "").trim()).filter(Boolean).slice(0, 50) : [];
+        this.setData({ lastNormalizeText: line, conflictKeys, showAllConflicts: conflictKeys.length === 0 });
+        this.refreshConflicts();
       })
       .catch(() => {
         wx.showToast({ title: t("common.failed"), icon: "none" });
@@ -113,7 +115,8 @@ Page({
           .then((res) => {
             if (!res) throw new Error("failed");
             const line = `dryRun=false users=${res.usersUpdated || 0} requests=${res.requestsUpdated || 0} intros=${res.introductionsUpdated || 0} contacts=${res.contactsUpdated || 0} conflicts=${res.contactConflictCount || 0}`;
-            this.setData({ lastNormalizeText: line });
+            const conflictKeys = Array.isArray(res.contactConflicts) ? res.contactConflicts.map((x: any) => String(x?.key || "").trim()).filter(Boolean).slice(0, 50) : [];
+            this.setData({ lastNormalizeText: line, conflictKeys, showAllConflicts: conflictKeys.length === 0 });
             this.refreshConflicts();
           })
           .catch(() => {
@@ -123,13 +126,20 @@ Page({
       }
     });
   },
+  onTapToggleConflictScope() {
+    this.setData({ showAllConflicts: !this.data.showAllConflicts });
+    this.refreshConflicts();
+  },
   refreshConflicts() {
     const key = getStoredAdminKey() || String(this.data.adminKeyInput || "").trim();
     if (!key) {
       this.setData({ conflicts: [] });
       return Promise.resolve();
     }
-    return adminListContactConflicts(key, 50).then((items) => {
+    const useKeys = !this.data.showAllConflicts && Array.isArray(this.data.conflictKeys) && this.data.conflictKeys.length > 0;
+    const keys = useKeys ? this.data.conflictKeys : undefined;
+    const limit = useKeys ? 200 : 50;
+    return adminListContactConflicts(key, limit, keys).then((items) => {
       const list = items.map((g) => ({ ...g, keepId: pickKeepId(g) }));
       this.setData({ conflicts: list });
     });
@@ -155,7 +165,12 @@ Page({
           .then((ok) => {
             if (!ok) throw new Error("failed");
             wx.showToast({ title: t("admin.done"), icon: "success" });
-            this.refreshConflicts();
+            return adminNormalizeChannels(key, true).then((res) => {
+              if (!res) return;
+              const line = `dryRun=true users=${res.usersUpdated || 0} requests=${res.requestsUpdated || 0} intros=${res.introductionsUpdated || 0} contacts=${res.contactsUpdated || 0} conflicts=${res.contactConflictCount || 0}`;
+              const conflictKeys = Array.isArray(res.contactConflicts) ? res.contactConflicts.map((x: any) => String(x?.key || "").trim()).filter(Boolean).slice(0, 50) : [];
+              this.setData({ lastNormalizeText: line, conflictKeys, showAllConflicts: conflictKeys.length === 0 });
+            });
           })
           .catch(() => {
             wx.showToast({ title: t("common.failed"), icon: "none" });
@@ -172,4 +187,3 @@ Page({
     this.setData({ conflicts: next });
   }
 });
-

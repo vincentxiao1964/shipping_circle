@@ -14,7 +14,6 @@
   <view class="card" style="margin-top: 16rpx;">
     <view style="font-weight: 600;">{{i18n["admin.normalizeDryRun"]}}</view>
     <view class="row" style="margin-top: 12rpx;">
-      <button size="mini" data-v="{{dryRun}}" bindtap="onTapToggleDryRun">{{dryRun ? "ON" : "OFF"}}</button>
       <button size="mini" style="margin-left: 12rpx;" bindtap="onTapNormalizeRun">{{i18n["admin.normalizeRun"]}}</button>
       <button size="mini" style="margin-left: 12rpx;" type="warn" bindtap="onTapNormalizeApply">{{i18n["admin.normalizeApply"]}}</button>
     </view>
@@ -26,6 +25,9 @@
   <view class="card" style="margin-top: 16rpx;">
     <view class="row">
       <view style="font-weight: 600;">{{i18n["admin.conflicts"]}}</view>
+      <button size="mini" style="margin-left: 12rpx;" bindtap="onTapToggleConflictScope" wx:if="{{conflictKeys && conflictKeys.length > 0}}">
+        {{showAllConflicts ? i18n["admin.showFromLastRun"] : i18n["admin.showAllConflicts"]}}
+      </button>
       <button size="mini" bindtap="refreshConflicts">{{i18n["admin.refreshConflicts"]}}</button>
     </view>
     <view class="muted" style="margin-top: 12rpx;" wx:if="{{!conflicts || conflicts.length === 0}}">-</view>
@@ -51,4 +53,3 @@
     </view>
   </view>
 </view>
-

@@ -273,6 +273,8 @@ export const enUS = {
   "admin.normalizeApply": "Apply",
   "admin.conflicts": "Contact conflicts",
   "admin.refreshConflicts": "Refresh",
+  "admin.showAllConflicts": "Show all",
+  "admin.showFromLastRun": "Only last run",
   "admin.merge": "Merge",
   "admin.keep": "Keep",
   "admin.remove": "Remove",

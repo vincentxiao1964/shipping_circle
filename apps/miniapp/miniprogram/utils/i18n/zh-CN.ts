@@ -273,6 +273,8 @@ export const zhCN = {
   "admin.normalizeApply": "执行",
   "admin.conflicts": "联系人冲突",
   "admin.refreshConflicts": "刷新",
+  "admin.showAllConflicts": "显示全部",
+  "admin.showFromLastRun": "仅显示本次",
   "admin.merge": "合并",
   "admin.keep": "保留",
   "admin.remove": "删除",

@@ -531,19 +531,30 @@ const server = http.createServer(async (req, res) => {
     if (!isAdmin(req)) return json(res, 403, { error: "Forbidden" });
     const limitRaw = Number(url.searchParams.get("limit") || 50);
     const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(1, limitRaw), 200) : 50;
+    const keysParam = String(url.searchParams.get("keys") || "").trim();
+    const wantedKeys = keysParam
+      ? keysParam
+          .split(",")
+          .map((x) => String(x || "").trim())
+          .filter(Boolean)
+          .slice(0, 50)
+      : null;
 
     const keyToContacts = new Map();
     for (const c of contacts) {
       if (!c) continue;
       const key = String(c.key || "");
       if (!key) continue;
+      if (wantedKeys && !wantedKeys.includes(key)) continue;
       const arr = keyToContacts.get(key) || [];
       arr.push(c);
       keyToContacts.set(key, arr);
     }
-    const groups = Array.from(keyToContacts.entries())
-      .filter(([, arr]) => arr.length > 1)
-      .sort((a, b) => b[1].length - a[1].length || String(a[0]).localeCompare(String(b[0])))
+    const pairs = wantedKeys
+      ? wantedKeys.map((k) => [k, keyToContacts.get(k) || []])
+      : Array.from(keyToContacts.entries()).sort((a, b) => b[1].length - a[1].length || String(a[0]).localeCompare(String(b[0])));
+    const groups = pairs
+      .filter(([, arr]) => Array.isArray(arr) && arr.length > 1)
       .slice(0, limit)
       .map(([key, arr]) => ({
         key,
