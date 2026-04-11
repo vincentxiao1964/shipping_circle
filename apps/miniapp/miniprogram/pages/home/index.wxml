@@ -59,6 +59,9 @@
     <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.tags && item.tags.length > 0}}">
       {{item.tags.join(", ")}}
     </view>
+    <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.priceHint}}">
+      {{i18n["request.priceHint"]}}：{{formatMoneyRange(item.priceHint)}}
+    </view>
     <view class="muted" style="margin-top: 8rpx;" wx:if="{{item.status === 'closed'}}">
       {{i18n["request.closed"]}}
     </view>

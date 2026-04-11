@@ -6,10 +6,12 @@ export type NotificationData = {
   postId?: string;
   fromUserId?: string;
   requestId?: string;
+  requestTitle?: string;
   introId?: string;
   companyId?: string;
   companyName?: string;
   tags?: string[];
+  priceHint?: { currency: string; min: number; max: number; count: number; updatedAt?: number } | null;
   kind?: string;
   fingerprint?: string;
   conflictKeys?: string[];

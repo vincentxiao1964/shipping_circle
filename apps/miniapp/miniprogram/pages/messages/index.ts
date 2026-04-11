@@ -19,6 +19,7 @@ const I18N_KEYS = [
   "messages.introduceNow",
   "messages.claimNow",
   "messages.quoteNow",
+  "request.priceHint",
   "messages.company",
   "messages.tags",
   "messages.openAdmin",
@@ -38,6 +39,7 @@ type NotificationViewItem = NotificationItem & {
   canQuickIntroduce: boolean;
   companyName: string;
   tagsText: string;
+  priceHintText: string;
   isNormalizeReport: boolean;
   normalizeKeysParam: string;
 };
@@ -127,6 +129,7 @@ Page({
           canQuickIntroduce: n.type === "requestPing" && Boolean(n.data?.requestId) && Boolean(me) && String(n.data?.fromUserId || "") !== me,
           companyName: String(n.data?.companyName || ""),
           tagsText: Array.isArray(n.data?.tags) ? n.data!.tags!.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 10).join(", ") : "",
+          priceHintText: this.formatMoneyRange(n.data?.priceHint),
           isNormalizeReport: n.type === "system" && String(n.data?.kind || "") === "normalizeChannels",
           normalizeKeysParam: Array.isArray(n.data?.conflictKeys)
             ? encodeURIComponent(n.data!.conflictKeys!.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 50).join(","))
@@ -149,6 +152,16 @@ Page({
     if (type === "introResult") return t("messages.introResult");
     if (type === "requestPing") return t("messages.requestPing");
     return t("messages.system");
+  },
+  formatMoneyRange(range: any) {
+    if (!range) return "";
+    const currency = String(range.currency || "").trim();
+    const min = Number(range.min || 0);
+    const max = Number(range.max || 0);
+    const count = Number(range.count || 0);
+    if (!currency || !Number.isFinite(min) || !Number.isFinite(max) || min <= 0 || max <= 0) return "";
+    const text = min === max ? `${currency} ${min}` : `${currency} ${min}-${max}`;
+    return count > 0 ? `${text} (n=${count})` : text;
   },
 
   onTapOpenRequest(e: WechatMiniprogram.BaseEvent) {

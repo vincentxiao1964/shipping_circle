@@ -1,8 +1,21 @@
 import { syncPageI18n, t, type MessageKey } from "../../utils/i18n";
 import { getToken } from "../../services/api";
-import { submitClaimQuoteStructured } from "../../services/requests";
+import { getRequest, submitClaimQuoteStructured } from "../../services/requests";
 
-const I18N_KEYS = ["quote.title", "quote.currency", "quote.amount", "quote.allIn", "quote.validDays", "quote.note", "quote.noteHint", "quote.submit", "common.ok", "common.failed"] as const satisfies readonly MessageKey[];
+const I18N_KEYS = [
+  "quote.title",
+  "quote.currency",
+  "quote.amount",
+  "quote.allIn",
+  "quote.validDays",
+  "quote.note",
+  "quote.noteHint",
+  "quote.submit",
+  "request.priceHint",
+  "request.quoteRange",
+  "common.ok",
+  "common.failed"
+] as const satisfies readonly MessageKey[];
 
 const DEFAULT_CURRENCIES = [
   { code: "USD", label: "USD" },
@@ -19,6 +32,8 @@ Page({
     requestId: "",
     claimId: "",
     requestTitle: "",
+    priceHintText: "",
+    quoteRangeText: "",
     currencyOptions: DEFAULT_CURRENCIES,
     currencyIndex: 0,
     amount: "",
@@ -32,6 +47,26 @@ Page({
     const claimId = String(query.claimId || "").trim();
     const requestTitle = query.requestTitle ? decodeURIComponent(String(query.requestTitle)) : "";
     this.setData({ requestId, claimId, requestTitle });
+    if (requestId) {
+      getRequest(requestId)
+        .then((r) => {
+          if (!r) return;
+          const title = String(r.title || "");
+          const nextTitle = this.data.requestTitle ? this.data.requestTitle : title;
+          const priceHintText = this.formatMoneyRange(r.priceHint);
+          const quoteRangeText = this.formatMoneyRange(r.quoteRange);
+          const desiredCurrency = String((r.priceHint as any)?.currency || "").trim();
+          const idx = desiredCurrency ? this.data.currencyOptions.findIndex((x) => x.code === desiredCurrency) : -1;
+          const currencyIndex = idx >= 0 ? idx : this.data.currencyIndex;
+          let amount = this.data.amount;
+          if (!String(amount || "").trim() && r.priceHint && Number(r.priceHint.min) > 0 && Number(r.priceHint.max) > 0) {
+            const mid = Math.round(((Number(r.priceHint.min) + Number(r.priceHint.max)) / 2) * 100) / 100;
+            amount = String(mid);
+          }
+          this.setData({ requestTitle: nextTitle, priceHintText, quoteRangeText, currencyIndex, amount });
+        })
+        .catch(() => {});
+    }
   },
   onShow() {
     syncPageI18n(this, I18N_KEYS);
@@ -87,6 +122,15 @@ Page({
       .finally(() => {
         this.setData({ loading: false });
       });
+  },
+  formatMoneyRange(range: any) {
+    if (!range) return "";
+    const currency = String(range.currency || "").trim();
+    const min = Number(range.min || 0);
+    const max = Number(range.max || 0);
+    const count = Number(range.count || 0);
+    if (!currency || !Number.isFinite(min) || !Number.isFinite(max) || min <= 0 || max <= 0) return "";
+    const text = min === max ? `${currency} ${min}` : `${currency} ${min}-${max}`;
+    return count > 0 ? `${text} (n=${count})` : text;
   }
 });
-

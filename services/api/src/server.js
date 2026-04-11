@@ -1486,6 +1486,7 @@ const server = http.createServer(async (req, res) => {
     if (exists) return json(res, 200, { ok: true, duplicated: true });
 
     const owner = ensureUser(userId);
+    if (!r.priceHint) r.priceHint = computePriceHintForRequest(r, Date.now());
     notifications.push({
       id: `n_${Date.now()}_${Math.random().toString(16).slice(2)}`,
       toUserId,
@@ -1494,7 +1495,15 @@ const server = http.createServer(async (req, res) => {
       content: `${owner.displayName}: ${r.title}`.slice(0, 500),
       createdAt: Date.now(),
       readAt: null,
-      data: { requestId: r.id, fromUserId: userId, companyId: r.companyId || "", companyName: r.companyName || "", tags: Array.isArray(r.tags) ? r.tags : [] }
+      data: {
+        requestId: r.id,
+        requestTitle: r.title,
+        fromUserId: userId,
+        companyId: r.companyId || "",
+        companyName: r.companyName || "",
+        tags: Array.isArray(r.tags) ? r.tags : [],
+        priceHint: r.priceHint || null
+      }
     });
     markDirty();
     return json(res, 200, { ok: true, duplicated: false });
@@ -1518,6 +1527,7 @@ const server = http.createServer(async (req, res) => {
 
     const candidates = recommendIntroducersForRequest({ request: r, viewerId: userId, limit, now, includeViewer: false });
     const owner = ensureUser(userId);
+    if (!r.priceHint) r.priceHint = computePriceHintForRequest(r, now);
     let sent = 0;
     let duplicated = 0;
     for (const cand of candidates) {
@@ -1539,7 +1549,15 @@ const server = http.createServer(async (req, res) => {
         content: `${owner.displayName}: ${r.title}`.slice(0, 500),
         createdAt: now,
         readAt: null,
-        data: { requestId: r.id, fromUserId: userId, companyId: r.companyId || "", companyName: r.companyName || "", tags: Array.isArray(r.tags) ? r.tags : [] }
+        data: {
+          requestId: r.id,
+          requestTitle: r.title,
+          fromUserId: userId,
+          companyId: r.companyId || "",
+          companyName: r.companyName || "",
+          tags: Array.isArray(r.tags) ? r.tags : [],
+          priceHint: r.priceHint || null
+        }
       });
       sent += 1;
     }

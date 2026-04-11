@@ -16,6 +16,7 @@ const I18N_KEYS = [
   "common.refresh",
   "common.noMore",
   "request.introCount",
+  "request.priceHint",
   "request.closed",
   "request.empty",
   "common.failed"
@@ -129,6 +130,16 @@ Page({
   },
   onTapRefresh() {
     this.loadFirstPage();
+  },
+  formatMoneyRange(range: any) {
+    if (!range) return "";
+    const currency = String(range.currency || "").trim();
+    const min = Number(range.min || 0);
+    const max = Number(range.max || 0);
+    const count = Number(range.count || 0);
+    if (!currency || !Number.isFinite(min) || !Number.isFinite(max) || min <= 0 || max <= 0) return "";
+    const text = min === max ? `${currency} ${min}` : `${currency} ${min}-${max}`;
+    return count > 0 ? `${text} (n=${count})` : text;
   },
   loadFirstPage() {
     if (this.data.loading) return;
