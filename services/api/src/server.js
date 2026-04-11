@@ -22,6 +22,7 @@ const MAX_PORT_TRIES = 20;
 const TOKEN_TTL_MS = Number(process.env.TOKEN_TTL_MS || 30 * 24 * 60 * 60 * 1000);
 const REFRESH_GRACE_MS = Number(process.env.REFRESH_GRACE_MS || 24 * 60 * 60 * 1000);
 const CONTACT_STALE_MS = Number(process.env.CONTACT_STALE_MS || 90 * 24 * 60 * 60 * 1000);
+const CONTACT_ENDORSE_VERIFY_N = Number(process.env.CONTACT_ENDORSE_VERIFY_N || 2);
 const ADMIN_KEY = String(process.env.ADMIN_KEY || "").trim();
 
 const server = http.createServer(async (req, res) => {
@@ -58,6 +59,7 @@ const server = http.createServer(async (req, res) => {
         "GET /companies/me/following",
         "GET /contacts/match",
         "GET /contacts/list?companyId=...",
+        "POST /contacts/:id/endorse",
         "POST /contacts/:id/feedback",
         "POST /contacts/batchFeedback",
         "POST /contacts/batchUpdate",
@@ -582,6 +584,8 @@ const server = http.createServer(async (req, res) => {
     const computeStatus = (x) => {
       const s = String(x?.status || "");
       if (s === "invalid") return "invalid";
+      const endorseCount = Array.isArray(x?.endorsedBy) ? x.endorsedBy.length : 0;
+      if (endorseCount >= CONTACT_ENDORSE_VERIFY_N) return "verified";
       const verifiedAt = Number(x?.verifiedAt || 0);
       if (verifiedAt && now - verifiedAt > CONTACT_STALE_MS) return "stale";
       if (s === "verified" || verifiedAt) return "verified";
@@ -624,7 +628,8 @@ const server = http.createServer(async (req, res) => {
             successCount: x.successCount || 0,
             failCount: x.failCount || 0,
             lastFailureAt: x.lastFailureAt || 0,
-            lastFailureReason: x.lastFailureReason || ""
+            lastFailureReason: x.lastFailureReason || "",
+            endorsedCount: Array.isArray(x.endorsedBy) ? x.endorsedBy.length : 0
           }))
         };
       })
@@ -646,6 +651,8 @@ const server = http.createServer(async (req, res) => {
     const computeStatus = (x) => {
       const s = String(x?.status || "");
       if (s === "invalid") return "invalid";
+      const endorseCount = Array.isArray(x?.endorsedBy) ? x.endorsedBy.length : 0;
+      if (endorseCount >= CONTACT_ENDORSE_VERIFY_N) return "verified";
       const verifiedAt = Number(x?.verifiedAt || 0);
       if (verifiedAt && now - verifiedAt > CONTACT_STALE_MS) return "stale";
       if (s === "verified" || verifiedAt) return "verified";
@@ -681,6 +688,7 @@ const server = http.createServer(async (req, res) => {
         failCount: x.c.failCount || 0,
         lastFailureAt: x.c.lastFailureAt || 0,
         lastFailureReason: x.c.lastFailureReason || "",
+        endorsedCount: Array.isArray(x.c.endorsedBy) ? x.c.endorsedBy.length : 0,
         updatedAt: x.c.updatedAt || 0
       }));
 
@@ -772,6 +780,36 @@ const server = http.createServer(async (req, res) => {
       okCount += 1;
     }
     return json(res, 200, { ok: true, okCount, notFound, conflictIds, unchangedIds });
+  }
+
+  const contactEndorseMatch = url.pathname.match(/^\/contacts\/([^/]+)\/endorse$/);
+  if (req.method === "POST" && contactEndorseMatch) {
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!userId) return json(res, 401, { error: "Unauthorized" });
+    const id = decodeURIComponent(contactEndorseMatch[1]);
+    const c = contacts.find((x) => x && x.id === id);
+    if (!c) return json(res, 404, { error: "Not Found" });
+    if (String(c.status || "") === "invalid") return json(res, 400, { error: "contact invalid" });
+
+    const u = ensureUser(userId);
+    const companyId = String(c.companyId || "").trim();
+    if (!companyId) return json(res, 400, { error: "companyId required" });
+    if (String(u.companyId || "").trim() !== companyId) return json(res, 403, { error: "Forbidden" });
+
+    const endorsedBy = Array.isArray(c.endorsedBy) ? c.endorsedBy.map((x) => String(x || "").trim()).filter(Boolean) : [];
+    if (!endorsedBy.includes(userId)) endorsedBy.push(userId);
+    c.endorsedBy = endorsedBy.slice(0, 50);
+
+    const now = Date.now();
+    if (c.endorsedBy.length >= CONTACT_ENDORSE_VERIFY_N) {
+      c.status = "verified";
+      c.verifiedAt = now;
+    } else if (!String(c.status || "").trim()) {
+      c.status = "candidate";
+    }
+    c.updatedAt = now;
+    markDirty();
+    return json(res, 200, { ok: true, endorsedCount: c.endorsedBy.length, status: String(c.status || "") });
   }
 
   const contactFeedbackMatch = url.pathname.match(/^\/contacts\/([^/]+)\/feedback$/);
@@ -959,6 +997,15 @@ const server = http.createServer(async (req, res) => {
     const r = requests.find((x) => x.id === id);
     if (!r) return json(res, 404, { error: "Not Found" });
     const isMine = viewerId ? r.ownerId === viewerId : false;
+    const owner = ensureUser(r.ownerId);
+    const visibility = String(owner.contactVisibility || "loggedIn");
+    const canViewOwnerContact =
+      Boolean(viewerId) &&
+      (visibility === "loggedIn" ||
+        (visibility === "private" && viewerId === r.ownerId) ||
+        (visibility === "mutual" &&
+          Boolean((follows.get(viewerId) || new Set()).has(r.ownerId)) &&
+          Boolean((follows.get(r.ownerId) || new Set()).has(viewerId))));
     const introItems = introductions
       .filter((i) => i.requestId === r.id)
       .slice()
@@ -981,12 +1028,12 @@ const server = http.createServer(async (req, res) => {
       item: {
         id: r.id,
         ownerId: r.ownerId,
-        ownerDisplayName: ensureUser(r.ownerId).displayName,
+        ownerDisplayName: owner.displayName,
         title: r.title,
         content: r.content,
         companyId: r.companyId || "",
         companyName: r.companyName || "",
-        ownerContactChannel: viewerId ? String(r.ownerContactChannel || "") : "",
+        ownerContactChannel: canViewOwnerContact ? String(r.ownerContactChannel || "") : "",
         tags: Array.isArray(r.tags) ? r.tags : [],
         status: r.status || "open",
         createdAt: r.createdAt,

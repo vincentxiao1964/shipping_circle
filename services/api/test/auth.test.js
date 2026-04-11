@@ -95,3 +95,54 @@ test("auth: refresh within grace", async () => {
     await stopServer(child);
   }
 });
+
+test("requests: owner contact visibility is respected", async () => {
+  const { child, port } = await startServer({ PORT: "0", TOKEN_TTL_MS: "60000", REFRESH_GRACE_MS: "60000" });
+  try {
+    const base = `http://localhost:${port}`;
+
+    const owner = await fetch(`${base}/auth/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "owner_privacy" })
+    }).then((r) => r.json());
+    const viewer = await fetch(`${base}/auth/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "viewer_privacy" })
+    }).then((r) => r.json());
+
+    const put = await fetch(`${base}/users/me`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${owner.token}` },
+      body: JSON.stringify({ displayName: "Owner", contactChannel: "wechat: owner_demo", contactVisibility: "private" })
+    });
+    assert.equal(put.status, 200);
+
+    const reqResp = await fetch(`${base}/requests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${owner.token}` },
+      body: JSON.stringify({ title: "need owner", companyName: "Demo Co", content: "x", tags: ["订舱"] })
+    });
+    assert.equal(reqResp.status, 201);
+    const created = await reqResp.json();
+    const requestId = created.item.id;
+    assert.ok(requestId);
+
+    const viewResp = await fetch(`${base}/requests/${encodeURIComponent(requestId)}`, {
+      headers: { Authorization: `Bearer ${viewer.token}` }
+    });
+    assert.equal(viewResp.status, 200);
+    const viewed = await viewResp.json();
+    assert.equal(viewed.item.ownerContactChannel || "", "");
+
+    const ownerViewResp = await fetch(`${base}/requests/${encodeURIComponent(requestId)}`, {
+      headers: { Authorization: `Bearer ${owner.token}` }
+    });
+    assert.equal(ownerViewResp.status, 200);
+    const ownerViewed = await ownerViewResp.json();
+    assert.equal(ownerViewed.item.ownerContactChannel, "wechat: owner_demo");
+  } finally {
+    await stopServer(child);
+  }
+});

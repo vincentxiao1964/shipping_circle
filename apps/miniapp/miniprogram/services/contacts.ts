@@ -15,6 +15,7 @@ export type ContactMatch = {
   failCount?: number;
   lastFailureAt?: number;
   lastFailureReason?: string;
+  endorsedCount?: number;
 };
 
 export type ContactMatchGroup = {
@@ -54,6 +55,17 @@ export async function confirmContact(id: string): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+export async function endorseContact(id: string): Promise<{ endorsedCount: number; status: string } | null> {
+  const cid = String(id || "").trim();
+  if (!cid) return null;
+  try {
+    const res = await requestJson<{ endorsedCount: number; status: string }>("POST", `/contacts/${encodeURIComponent(cid)}/endorse`, {});
+    return res ? { endorsedCount: Number(res.endorsedCount || 0), status: String(res.status || "") } : null;
+  } catch {
+    return null;
   }
 }
 

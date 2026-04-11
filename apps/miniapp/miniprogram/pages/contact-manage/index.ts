@@ -4,6 +4,7 @@ import {
   batchInvalidateContacts,
   batchReplaceContactChannel,
   confirmContact,
+  endorseContact,
   invalidateContact,
   listContactsByCompany,
   updateContact,
@@ -35,6 +36,9 @@ const I18N_KEYS = [
   "contact.copied",
   "contact.stale",
   "contact.candidate",
+  "contact.endorse",
+  "contact.endorsed",
+  "contact.endorsedCount",
   "contact.confirm",
   "contact.update",
   "contact.markInvalid",
@@ -229,6 +233,19 @@ Page({
       .then((ok) => {
         if (!ok) throw new Error("failed");
         wx.showToast({ title: t("contact.confirmed"), icon: "success" });
+        this.load();
+      })
+      .catch(() => {
+        wx.showToast({ title: t("common.failed"), icon: "none" });
+      });
+  },
+  onTapContactEndorse(e: WechatMiniprogram.BaseEvent) {
+    const id = (e.currentTarget as any)?.dataset?.id as string | undefined;
+    if (!id) return;
+    endorseContact(id)
+      .then((res) => {
+        if (!res) throw new Error("failed");
+        wx.showToast({ title: t("contact.endorsed"), icon: "success" });
         this.load();
       })
       .catch(() => {

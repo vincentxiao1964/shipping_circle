@@ -472,6 +472,129 @@ test("contacts: batchUpdate replaceChannel works", async () => {
   }
 });
 
+test("contacts: endorse from same company upgrades to verified", async () => {
+  const { child, port } = await startServer({ PORT: "0", TOKEN_TTL_MS: "60000", REFRESH_GRACE_MS: "60000" });
+  try {
+    const base = `http://localhost:${port}`;
+
+    const loginOwner = await fetch(`${base}/auth/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "owner_code_endorse" })
+    }).then((r) => r.json());
+
+    const companyResp = await fetch(`${base}/companies`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${loginOwner.token}` },
+      body: JSON.stringify({
+        name: "Endorse Co",
+        region: "SH",
+        tags: ["订舱"],
+        roles: [{ business: "订舱", title: "负责人" }]
+      })
+    });
+    assert.equal(companyResp.status, 201);
+    const company = await companyResp.json();
+    const companyId = company.item.id;
+    assert.ok(companyId);
+
+    const reqResp = await fetch(`${base}/requests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${loginOwner.token}` },
+      body: JSON.stringify({ title: "need owner", companyId, companyName: "Endorse Co", content: "x", tags: ["订舱"] })
+    });
+    assert.equal(reqResp.status, 201);
+    const created = await reqResp.json();
+    const requestId = created.item.id;
+    assert.ok(requestId);
+
+    const loginIntro = await fetch(`${base}/auth/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "intro_code_endorse" })
+    }).then((r) => r.json());
+
+    const introResp = await fetch(`${base}/requests/${encodeURIComponent(requestId)}/introductions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${loginIntro.token}` },
+      body: JSON.stringify({
+        contactName: "Nina",
+        contactTitle: "订舱负责人",
+        contactChannel: "wechat: nina_demo",
+        clue: "",
+        note: ""
+      })
+    });
+    assert.equal(introResp.status, 201);
+    const intro = await introResp.json();
+    const introId = intro.item.id;
+    assert.ok(introId);
+
+    const resolveResp = await fetch(`${base}/introductions/${encodeURIComponent(introId)}/resolve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${loginOwner.token}` },
+      body: JSON.stringify({ outcome: "fail", reason: "unreachable" })
+    });
+    assert.equal(resolveResp.status, 200);
+
+    const listCandidate = await fetch(`${base}/contacts/list?companyId=${encodeURIComponent(companyId)}&statuses=${encodeURIComponent("candidate")}`, {
+      headers: { Authorization: `Bearer ${loginOwner.token}` }
+    }).then((r) => r.json());
+    const candidate = (listCandidate.items || []).find((x) => x.contactChannel === "wechat: nina_demo");
+    assert.ok(candidate?.id);
+
+    const loginEmp1 = await fetch(`${base}/auth/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "emp1_code_endorse" })
+    }).then((r) => r.json());
+    const loginEmp2 = await fetch(`${base}/auth/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "emp2_code_endorse" })
+    }).then((r) => r.json());
+
+    const put1 = await fetch(`${base}/users/me`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${loginEmp1.token}` },
+      body: JSON.stringify({ displayName: "Emp1", companyId, businesses: ["订舱"] })
+    });
+    assert.equal(put1.status, 200);
+    const put2 = await fetch(`${base}/users/me`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${loginEmp2.token}` },
+      body: JSON.stringify({ displayName: "Emp2", companyId, businesses: ["订舱"] })
+    });
+    assert.equal(put2.status, 200);
+
+    const endorse1 = await fetch(`${base}/contacts/${encodeURIComponent(candidate.id)}/endorse`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${loginEmp1.token}` }
+    });
+    assert.equal(endorse1.status, 200);
+    const e1 = await endorse1.json();
+    assert.equal(e1.endorsedCount, 1);
+
+    const endorse2 = await fetch(`${base}/contacts/${encodeURIComponent(candidate.id)}/endorse`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${loginEmp2.token}` }
+    });
+    assert.equal(endorse2.status, 200);
+    const e2 = await endorse2.json();
+    assert.equal(e2.endorsedCount, 2);
+
+    const listVerified = await fetch(`${base}/contacts/list?companyId=${encodeURIComponent(companyId)}&statuses=${encodeURIComponent("verified")}`, {
+      headers: { Authorization: `Bearer ${loginOwner.token}` }
+    }).then((r) => r.json());
+    assert.ok(Array.isArray(listVerified.items));
+    const verified = listVerified.items.find((x) => x.contactChannel === "wechat: nina_demo");
+    assert.ok(verified);
+    assert.ok((verified.endorsedCount || 0) >= 2);
+  } finally {
+    await stopServer(child);
+  }
+});
+
 test("contacts: stale is computed by verifiedAt", async () => {
   const { child, port } = await startServer({
     PORT: "0",

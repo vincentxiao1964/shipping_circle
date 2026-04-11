@@ -62,9 +62,13 @@
       </view>
       <view class="muted" style="margin-top: 8rpx;" wx:if="{{c.status === 'stale'}}">{{i18n["contact.stale"]}}</view>
       <view class="muted" style="margin-top: 8rpx;" wx:if="{{c.status === 'candidate'}}">{{i18n["contact.candidate"]}}</view>
+      <view class="muted" style="margin-top: 8rpx;" wx:if="{{c.endorsedCount}}">{{i18n["contact.endorsedCount"].replace('{count}', c.endorsedCount)}}</view>
       <view class="row" style="margin-top: 8rpx;">
         <button size="mini" type="primary" data-id="{{c.id}}" catchtap="onTapContactConfirm" wx:if="{{c.status !== 'verified'}}">
           {{i18n["contact.confirm"]}}
+        </button>
+        <button size="mini" style="margin-left: 12rpx;" data-id="{{c.id}}" catchtap="onTapContactEndorse" wx:if="{{c.status !== 'verified'}}">
+          {{i18n["contact.endorse"]}}
         </button>
         <button size="mini" style="margin-left: 12rpx;" data-id="{{c.id}}" data-channel="{{c.contactChannel}}" catchtap="onTapContactUpdate">
           {{i18n["contact.update"]}}
