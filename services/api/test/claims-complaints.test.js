@@ -246,7 +246,7 @@ test("claims: quote prevents overdue nudge penalty and can be required for compl
     const quoteResp = await fetch(`${base}/requests/${encodeURIComponent(requestId)}/claims/${encodeURIComponent(claimId)}/quote`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${worker.token}` },
-      body: JSON.stringify({ quoteNote: "USD 2000 all-in, valid 7d" })
+      body: JSON.stringify({ quoteCurrency: "USD", quoteAmount: 2000, quoteAllIn: true, quoteValidDays: 7, quoteNote: "USD 2000 all-in, valid 7d" })
     });
     assert.equal(quoteResp.status, 200);
 

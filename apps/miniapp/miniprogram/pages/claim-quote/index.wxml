@@ -1,0 +1,51 @@
+<view class="container">
+  <view class="card">
+    <view style="font-weight: 600;">{{i18n["quote.title"]}}</view>
+    <view class="muted" style="margin-top: 8rpx;">{{requestTitle}}</view>
+  </view>
+
+  <view class="card" style="margin-top: 16rpx;">
+    <view class="muted">{{i18n["quote.currency"]}}</view>
+    <picker mode="selector" range="{{currencyOptions}}" range-key="label" bindchange="onPickCurrency">
+      <view style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;">
+        {{currencyOptions[currencyIndex].label}}
+      </view>
+    </picker>
+
+    <view class="muted" style="margin-top: 12rpx;">{{i18n["quote.amount"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{amount}}"
+      bindinput="onInputAmount"
+      inputmode="decimal"
+      placeholder="0"
+    />
+
+    <view class="row" style="margin-top: 12rpx;">
+      <view class="muted">{{i18n["quote.allIn"]}}</view>
+      <switch checked="{{allIn}}" bindchange="onToggleAllIn" />
+    </view>
+
+    <view class="muted" style="margin-top: 12rpx;">{{i18n["quote.validDays"]}}</view>
+    <input
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx;"
+      value="{{validDays}}"
+      bindinput="onInputValidDays"
+      inputmode="numeric"
+      placeholder="7"
+    />
+
+    <view class="muted" style="margin-top: 12rpx;">{{i18n["quote.note"]}}</view>
+    <textarea
+      style="margin-top: 12rpx; padding: 16rpx; border: 1px solid #eeeeee; border-radius: 12rpx; min-height: 200rpx;"
+      value="{{note}}"
+      bindinput="onInputNote"
+      placeholder="{{i18n['quote.noteHint']}}"
+    />
+
+    <button type="primary" style="margin-top: 16rpx;" loading="{{loading}}" disabled="{{loading}}" bindtap="onTapSubmit">
+      {{i18n["quote.submit"]}}
+    </button>
+  </view>
+</view>
+

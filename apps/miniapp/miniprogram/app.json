@@ -13,6 +13,7 @@
     "pages/contact-manage/index",
     "pages/company-following/index",
     "pages/request-create/index",
+    "pages/claim-quote/index",
     "pages/request-detail/index",
     "pages/request-edit/index",
     "pages/my-introductions/index",

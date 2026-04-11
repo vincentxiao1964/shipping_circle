@@ -1751,13 +1751,25 @@ const server = http.createServer(async (req, res) => {
     if (claim.status !== "claimed") return json(res, 400, { error: "cannot quote" });
 
     const body = await readJson(req).catch(() => null);
-    const quoteNote = typeof body?.quoteNote === "string" ? body.quoteNote.trim().slice(0, 500) : "";
-    if (!quoteNote) return json(res, 400, { error: "quoteNote required" });
+    const rawNote = typeof body?.quoteNote === "string" ? body.quoteNote.trim().slice(0, 500) : "";
+    const quoteCurrency = typeof body?.quoteCurrency === "string" ? body.quoteCurrency.trim().slice(0, 8).toUpperCase() : "";
+    const quoteAmount = Number(body?.quoteAmount || 0);
+    const quoteAllIn = Boolean(body?.quoteAllIn);
+    const quoteValidDays = Number(body?.quoteValidDays || 0);
+    const canUseStructured = Boolean(quoteCurrency && Number.isFinite(quoteAmount) && quoteAmount > 0);
+    const quoteNote =
+      rawNote ||
+      (canUseStructured
+        ? `${quoteCurrency} ${quoteAmount}${quoteAllIn ? " all-in" : ""}${Number.isFinite(quoteValidDays) && quoteValidDays > 0 ? ` valid ${Math.floor(quoteValidDays)}d` : ""}`
+        : "");
+    if (!quoteNote) return json(res, 400, { error: "quote required" });
 
     markDirty();
     const now = Date.now();
     claim.quoteNote = quoteNote;
-    const parsed = parseQuoteFromText(quoteNote);
+    const parsed = canUseStructured
+      ? { currency: quoteCurrency, amount: quoteAmount, allIn: quoteAllIn, validDays: Number.isFinite(quoteValidDays) && quoteValidDays > 0 ? Math.floor(quoteValidDays) : 0 }
+      : parseQuoteFromText(quoteNote);
     claim.quoteCurrency = parsed.currency;
     claim.quoteAmount = parsed.amount;
     claim.quoteAllIn = parsed.allIn;

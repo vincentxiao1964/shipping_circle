@@ -12,7 +12,6 @@ import {
   getRequest,
   listRequestClaims,
   nudgeRequestClaim,
-  submitClaimQuote,
   pingIntroducer,
   updateRequest,
   resolveIntroduction,
@@ -516,25 +515,10 @@ Page({
       wx.navigateTo({ url: "/pages/login/index" });
       return;
     }
-    wx.showModal({
-      title: t("request.quoteNoteTitle"),
-      editable: true,
-      placeholderText: t("request.quoteNoteHint"),
-      success: (r) => {
-        if (!r.confirm) return;
-        const note = String((r as any).content || "").trim();
-        if (!note) return;
-        submitClaimQuote(this.data.item!.id, this.data.myClaim!.id, note)
-          .then((ok) => {
-            if (!ok) throw new Error("failed");
-            wx.showToast({ title: t("request.claimQuoteDone"), icon: "success" });
-            this.load();
-          })
-          .catch(() => {
-            wx.showToast({ title: t("common.failed"), icon: "none" });
-          });
-      }
-    });
+    const requestId = encodeURIComponent(this.data.item.id);
+    const claimId = encodeURIComponent(this.data.myClaim.id);
+    const requestTitle = encodeURIComponent(this.data.item.title || "");
+    wx.navigateTo({ url: `/pages/claim-quote/index?requestId=${requestId}&claimId=${claimId}&requestTitle=${requestTitle}` });
   },
   getClaimStatusLabel(status: string, acknowledgedAt?: number) {
     if (status === "claimed" && !acknowledgedAt) return t("request.claimStatusUnacked");

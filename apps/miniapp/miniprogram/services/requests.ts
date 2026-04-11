@@ -60,6 +60,12 @@ export type RequestClaimItem = {
   acknowledgedAt?: number;
   nudgeCount?: number;
   lastNudgedAt?: number;
+  quoteNote?: string;
+  quoteSubmittedAt?: number;
+  quoteCurrency?: string;
+  quoteAmount?: number;
+  quoteAllIn?: boolean;
+  quoteValidDays?: number;
   expiredAt?: number;
   completedAt?: number;
   complainedAt?: number;
@@ -342,6 +348,34 @@ export async function submitClaimQuote(requestId: string, claimId: string, quote
   if (!rid || !cid || !note) return false;
   try {
     const res = await requestJson<{ ok: boolean }>("POST", `/requests/${encodeURIComponent(rid)}/claims/${encodeURIComponent(cid)}/quote`, {
+      quoteNote: note
+    });
+    return Boolean(res?.ok);
+  } catch {
+    return false;
+  }
+}
+
+export async function submitClaimQuoteStructured(
+  requestId: string,
+  claimId: string,
+  input: { currency: string; amount: number; allIn: boolean; validDays?: number; note?: string }
+): Promise<boolean> {
+  const rid = requestId.trim();
+  const cid = claimId.trim();
+  if (!rid || !cid) return false;
+  const currency = String(input?.currency || "").trim();
+  const amount = Number(input?.amount || 0);
+  const allIn = Boolean(input?.allIn);
+  const validDays = Number(input?.validDays || 0);
+  const note = String(input?.note || "").trim();
+  if (!currency || !Number.isFinite(amount) || amount <= 0) return false;
+  try {
+    const res = await requestJson<{ ok: boolean }>("POST", `/requests/${encodeURIComponent(rid)}/claims/${encodeURIComponent(cid)}/quote`, {
+      quoteCurrency: currency,
+      quoteAmount: amount,
+      quoteAllIn: allIn,
+      quoteValidDays: Number.isFinite(validDays) && validDays > 0 ? Math.floor(validDays) : 0,
       quoteNote: note
     });
     return Boolean(res?.ok);
