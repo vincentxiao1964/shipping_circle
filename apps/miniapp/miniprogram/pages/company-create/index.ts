@@ -9,7 +9,11 @@ const I18N_KEYS = [
   "company.tags",
   "company.businesses",
   "company.publish",
+  "company.confirmTitle",
+  "company.confirmFromBusinesses",
+  "company.confirmFromTags",
   "common.ok",
+  "common.cancel",
   "common.failed"
 ] as const satisfies readonly MessageKey[];
 
@@ -84,25 +88,38 @@ Page({
       return;
     }
 
-    this.setData({ loading: true });
-    createCompany({ name, region, tags, roles })
-      .then((item) => {
-        wx.showToast({ title: t("common.ok"), icon: "success" });
-        if (this.data.returnTo === "back") {
-          try {
-            const ch = (this as any).getOpenerEventChannel ? (this as any).getOpenerEventChannel() : null;
-            if (ch && ch.emit) ch.emit("created", { id: item.id, name: item.name });
-          } catch {}
-          wx.navigateBack();
-          return;
-        }
-        wx.redirectTo({ url: `/pages/company-detail/index?id=${encodeURIComponent(item.id)}` });
-      })
-      .catch(() => {
-        wx.showToast({ title: t("common.failed"), icon: "none" });
-      })
-      .finally(() => {
-        this.setData({ loading: false });
-      });
+    const list = roles.map((r) => r.business).slice(0, 10).join(", ");
+    const content =
+      businesses.length > 0 ? t("company.confirmFromBusinesses", { list }) : t("company.confirmFromTags", { list });
+
+    wx.showModal({
+      title: t("company.confirmTitle"),
+      content,
+      confirmText: t("common.ok"),
+      cancelText: t("common.cancel"),
+      success: (r) => {
+        if (!r.confirm) return;
+        this.setData({ loading: true });
+        createCompany({ name, region, tags, roles })
+          .then((item) => {
+            wx.showToast({ title: t("common.ok"), icon: "success" });
+            if (this.data.returnTo === "back") {
+              try {
+                const ch = (this as any).getOpenerEventChannel ? (this as any).getOpenerEventChannel() : null;
+                if (ch && ch.emit) ch.emit("created", { id: item.id, name: item.name });
+              } catch {}
+              wx.navigateBack();
+              return;
+            }
+            wx.redirectTo({ url: `/pages/company-detail/index?id=${encodeURIComponent(item.id)}` });
+          })
+          .catch(() => {
+            wx.showToast({ title: t("common.failed"), icon: "none" });
+          })
+          .finally(() => {
+            this.setData({ loading: false });
+          });
+      }
+    });
   }
 });
