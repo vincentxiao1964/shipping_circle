@@ -43,6 +43,7 @@ export type IntroducerRecommendItem = {
   successCount: number;
   points?: number;
   complaintCount?: number;
+  claimExpiredCount?: number;
 };
 
 export type RequestClaimItem = {
@@ -50,8 +51,11 @@ export type RequestClaimItem = {
   requestId: string;
   claimerId: string;
   claimerDisplayName?: string;
-  status: "claimed" | "completed" | "complained";
+  status: "claimed" | "completed" | "complained" | "expired";
   createdAt: number;
+  updatedAt?: number;
+  acknowledgedAt?: number;
+  expiredAt?: number;
   completedAt?: number;
   complainedAt?: number;
 };
@@ -281,6 +285,18 @@ export async function complainRequestClaim(requestId: string, claimId: string, r
     return { penaltyPoints: Number(res.penaltyPoints || 0) };
   } catch {
     return null;
+  }
+}
+
+export async function ackRequestClaim(requestId: string, claimId: string): Promise<boolean> {
+  const rid = requestId.trim();
+  const cid = claimId.trim();
+  if (!rid || !cid) return false;
+  try {
+    const res = await requestJson<{ ok: boolean }>("POST", `/requests/${encodeURIComponent(rid)}/claims/${encodeURIComponent(cid)}/ack`, {});
+    return Boolean(res?.ok);
+  } catch {
+    return false;
   }
 }
 

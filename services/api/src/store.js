@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import fsSync from "node:fs";
 import path from "node:path";
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -34,7 +35,9 @@ export function initStore() {
   };
 
   currentState = state;
-  loadInto(state).catch(() => {});
+  try {
+    loadIntoSync(state);
+  } catch {}
 
   const flush = () => saveNow(state);
   process.on("SIGINT", () => {
@@ -45,6 +48,23 @@ export function initStore() {
   });
 
   return state;
+}
+
+function loadIntoSync(target) {
+  fsSync.mkdirSync(DATA_DIR, { recursive: true });
+  if (!fsSync.existsSync(DB_PATH)) {
+    applySnapshot(target, defaultState());
+    markDirty();
+    return;
+  }
+  const raw = fsSync.readFileSync(DB_PATH, "utf-8");
+  if (!raw) {
+    applySnapshot(target, defaultState());
+    markDirty();
+    return;
+  }
+  const parsed = JSON.parse(raw);
+  applySnapshot(target, parsed);
 }
 
 async function loadInto(target) {

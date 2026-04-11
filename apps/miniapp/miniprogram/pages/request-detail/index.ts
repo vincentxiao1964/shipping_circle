@@ -3,6 +3,7 @@ import { getUserId } from "../../services/auth";
 import { confirmContact, invalidateContact, matchContacts, updateContact, type ContactMatchGroup } from "../../services/contacts";
 import { getIsFollowing, toggleFollow } from "../../services/follows";
 import {
+  ackRequestClaim,
   claimRequest,
   complainRequestClaim,
   completeRequestClaim,
@@ -78,8 +79,11 @@ const I18N_KEYS = [
   "request.claimList",
   "request.claimEmpty",
   "request.claimStatusClaimed",
+  "request.claimStatusUnacked",
   "request.claimStatusCompleted",
   "request.claimStatusComplained",
+  "request.claimStatusExpired",
+  "request.claimAck",
   "request.claimComplete",
   "request.claimComplain",
   "request.complainReasonTitle",
@@ -107,7 +111,16 @@ Page({
     id: "",
     meUserId: "",
     item: null as RequestDetail | null,
-    recommend: [] as { id: string; displayName: string; score: number; successCount: number; points?: number; complaintCount?: number; isFollowing: boolean }[],
+    recommend: [] as {
+      id: string;
+      displayName: string;
+      score: number;
+      successCount: number;
+      points?: number;
+      complaintCount?: number;
+      claimExpiredCount?: number;
+      isFollowing: boolean;
+    }[],
     claims: [] as RequestClaimItem[],
     myClaim: null as RequestClaimItem | null,
     contactGroups: [] as ContactMatchGroup[],
@@ -237,6 +250,25 @@ Page({
     claimRequest(this.data.item.id)
       .then((res) => {
         if (!res) throw new Error("failed");
+        wx.showToast({ title: t("common.ok"), icon: "success" });
+        this.load();
+      })
+      .catch(() => {
+        wx.showToast({ title: t("common.failed"), icon: "none" });
+      });
+  },
+  onTapClaimAck() {
+    if (!this.data.item) return;
+    if (this.data.item.isMine) return;
+    if (!this.data.myClaim || this.data.myClaim.status !== "claimed") return;
+    if (this.data.myClaim.acknowledgedAt) return;
+    if (!getToken()) {
+      wx.navigateTo({ url: "/pages/login/index" });
+      return;
+    }
+    ackRequestClaim(this.data.item.id, this.data.myClaim.id)
+      .then((ok) => {
+        if (!ok) throw new Error("failed");
         wx.showToast({ title: t("common.ok"), icon: "success" });
         this.load();
       })
@@ -444,9 +476,11 @@ Page({
       }
     });
   },
-  getClaimStatusLabel(status: string) {
+  getClaimStatusLabel(status: string, acknowledgedAt?: number) {
+    if (status === "claimed" && !acknowledgedAt) return t("request.claimStatusUnacked");
     if (status === "completed") return t("request.claimStatusCompleted");
     if (status === "complained") return t("request.claimStatusComplained");
+    if (status === "expired") return t("request.claimStatusExpired");
     return t("request.claimStatusClaimed");
   },
   load() {

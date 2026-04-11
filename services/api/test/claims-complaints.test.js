@@ -122,3 +122,75 @@ test("claims: complain reduces points and removes from recommendation", async ()
   }
 });
 
+test("claims: ack timeout auto expires and active limit applies", async () => {
+  const { child, port } = await startServer({
+    PORT: "0",
+    TOKEN_TTL_MS: "60000",
+    REFRESH_GRACE_MS: "60000",
+    CLAIM_ACK_TIMEOUT_MS: "1",
+    CLAIM_EXPIRE_PENALTY_POINTS: "1",
+    MAX_ACTIVE_CLAIMS: "1"
+  });
+  try {
+    const base = `http://localhost:${port}`;
+
+    const owner = await fetch(`${base}/auth/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "owner_limit" })
+    }).then((r) => r.json());
+    const worker = await fetch(`${base}/auth/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "worker_limit" })
+    }).then((r) => r.json());
+
+    const createReq = async (title) => {
+      const resp = await fetch(`${base}/requests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${owner.token}` },
+        body: JSON.stringify({ title, companyName: "Demo Co", content: "x", tags: ["订舱"] })
+      });
+      assert.equal(resp.status, 201);
+      const created = await resp.json();
+      return created.item.id;
+    };
+    const r1 = await createReq("r1");
+    const r2 = await createReq("r2");
+
+    const claim1 = await fetch(`${base}/requests/${encodeURIComponent(r1)}/claim`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${worker.token}` }
+    }).then((r) => ({ status: r.status, json: r.json() }));
+    assert.equal(claim1.status, 201);
+    const claim1Body = await claim1.json;
+    assert.ok(claim1Body.item?.id);
+
+    const claim2 = await fetch(`${base}/requests/${encodeURIComponent(r2)}/claim`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${worker.token}` }
+    });
+    assert.equal(claim2.status, 400);
+
+    await new Promise((r) => setTimeout(r, 5));
+    const mineList = await fetch(`${base}/requests/${encodeURIComponent(r1)}/claims?mine=1`, {
+      headers: { Authorization: `Bearer ${worker.token}` }
+    });
+    assert.equal(mineList.status, 200);
+    const mine = await mineList.json();
+    assert.ok(Array.isArray(mine.items));
+    assert.equal(mine.items[0].status, "expired");
+
+    const claim2b = await fetch(`${base}/requests/${encodeURIComponent(r2)}/claim`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${worker.token}` }
+    });
+    assert.equal(claim2b.status, 201);
+
+    const statsResp = await fetch(`${base}/users/${encodeURIComponent(worker.user.id)}/stats`);
+    const stats = await statsResp.json();
+    assert.ok(stats.item.claimExpiredCount >= 1);
+  } finally {
+    await stopServer(child);
+  }
+});

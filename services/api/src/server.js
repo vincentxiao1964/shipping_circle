@@ -35,6 +35,40 @@ const ALLOW_DEV_MOCK_OPENID = String(process.env.ALLOW_DEV_MOCK_OPENID || "") ==
 const CLAIM_COMPLETE_POINTS = Number(process.env.CLAIM_COMPLETE_POINTS || 2);
 const COMPLAINT_PENALTY_POINTS = Number(process.env.COMPLAINT_PENALTY_POINTS || 5);
 const COMPLAINT_BLOCK_THRESHOLD = Number(process.env.COMPLAINT_BLOCK_THRESHOLD || 3);
+const CLAIM_ACK_TIMEOUT_MS = Number(process.env.CLAIM_ACK_TIMEOUT_MS || 10 * 60 * 1000);
+const CLAIM_EXPIRE_PENALTY_POINTS = Number(process.env.CLAIM_EXPIRE_PENALTY_POINTS || 2);
+const MAX_ACTIVE_CLAIMS = Number(process.env.MAX_ACTIVE_CLAIMS || 3);
+
+function autoExpireClaims(now) {
+  const ts = typeof now === "number" ? now : Date.now();
+  if (!Number.isFinite(CLAIM_ACK_TIMEOUT_MS) || CLAIM_ACK_TIMEOUT_MS <= 0) return 0;
+  let changed = 0;
+  for (const c of requestClaims) {
+    if (!c || c.status !== "claimed") continue;
+    if (Number(c.acknowledgedAt || 0) > 0) continue;
+    if (!c.createdAt || ts - c.createdAt <= CLAIM_ACK_TIMEOUT_MS) continue;
+    const stats = ensureUserStats(c.claimerId);
+    stats.points -= Math.max(0, CLAIM_EXPIRE_PENALTY_POINTS);
+    stats.claimExpiredCount = Number(stats.claimExpiredCount || 0) + 1;
+    userStats.set(c.claimerId, stats);
+    c.status = "expired";
+    c.expiredAt = ts;
+    c.updatedAt = ts;
+    changed += 1;
+    notifications.push({
+      id: `n_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      toUserId: c.claimerId,
+      type: "system",
+      title: "Claim expired / 抢单超时",
+      content: `${ensureUser(c.ownerId).displayName}`.slice(0, 500),
+      createdAt: ts,
+      readAt: null,
+      data: { kind: "claimExpired", requestId: c.requestId, claimId: c.id, penaltyPoints: CLAIM_EXPIRE_PENALTY_POINTS }
+    });
+  }
+  if (changed > 0) markDirty();
+  return changed;
+}
 
 const server = http.createServer(async (req, res) => {
   setCors(res);
@@ -86,6 +120,7 @@ const server = http.createServer(async (req, res) => {
         "GET /requests/:id/recommend-introducers",
         "POST /requests/:id/claim",
         "GET /requests/:id/claims",
+        "POST /requests/:id/claims/:claimId/ack",
         "POST /requests/:id/claims/:claimId/complete",
         "POST /requests/:id/claims/:claimId/complain",
         "POST /requests/:id/ping",
@@ -305,6 +340,7 @@ const server = http.createServer(async (req, res) => {
         claimCompleteCount: Number(stats.claimCompleteCount || 0),
         complaintCount: Number(stats.complaintCount || 0),
         claimComplaintCount: Number(stats.claimComplaintCount || 0),
+        claimExpiredCount: Number(stats.claimExpiredCount || 0),
         topTags
       }
     });
@@ -1220,6 +1256,8 @@ const server = http.createServer(async (req, res) => {
 
   const recommendIntroMatch = url.pathname.match(/^\/requests\/([^/]+)\/recommend-introducers$/);
   if (req.method === "GET" && recommendIntroMatch) {
+    const now = Date.now();
+    autoExpireClaims(now);
     const viewerId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!viewerId) return json(res, 401, { error: "Unauthorized" });
     const id = decodeURIComponent(recommendIntroMatch[1]);
@@ -1232,7 +1270,6 @@ const server = http.createServer(async (req, res) => {
     const companyKey = companyId ? "" : normalizeCompany(r.companyName || "");
 
     const byUser = new Map();
-    const now = Date.now();
     const RECENT_MS = 180 * 24 * 60 * 60 * 1000;
     for (const i of introductions) {
       if (i.outcome !== "success") continue;
@@ -1291,14 +1328,29 @@ const server = http.createServer(async (req, res) => {
         const complaintCount = Number(stats.complaintCount || 0);
         const recent = complaintRecentCountByUser.get(x.userId) || 0;
         const pointsBoost = Math.min(3, Math.floor(Number(stats.points || 0) / 20));
-        const complaintPenalty = complaintCount * 2 + recent * 3;
-        return { ...x, score: x.score + pointsBoost - complaintPenalty, complaintCount, points: Number(stats.points || 0) };
+        const expiredCount = Number(stats.claimExpiredCount || 0);
+        const complaintPenalty = complaintCount * 2 + recent * 3 + expiredCount * 2;
+        return {
+          ...x,
+          score: x.score + pointsBoost - complaintPenalty,
+          complaintCount,
+          points: Number(stats.points || 0),
+          claimExpiredCount: expiredCount
+        };
       })
       .sort((a, b) => b.score - a.score || b.successCount - a.successCount)
       .slice(0, limit);
     const items = rows.map((r) => {
       const u = ensureUser(r.userId);
-      return { id: u.id, displayName: u.displayName, score: r.score, successCount: r.successCount, complaintCount: r.complaintCount, points: r.points };
+      return {
+        id: u.id,
+        displayName: u.displayName,
+        score: r.score,
+        successCount: r.successCount,
+        complaintCount: r.complaintCount,
+        points: r.points,
+        claimExpiredCount: Number(r.claimExpiredCount || 0)
+      };
     });
     return json(res, 200, { items });
   }
@@ -1350,6 +1402,18 @@ const server = http.createServer(async (req, res) => {
     if (String(r.status || "open") !== "open") return json(res, 400, { error: "request closed" });
     if (r.ownerId === userId) return json(res, 400, { error: "cannot claim own request" });
 
+    const now = Date.now();
+    autoExpireClaims(now);
+
+    const stats = ensureUserStats(userId);
+    const complaintCount = Number(stats.complaintCount || 0);
+    if (complaintCount >= COMPLAINT_BLOCK_THRESHOLD) return json(res, 403, { error: "user not eligible" });
+    const recentComplaints = requestComplaints.filter((c) => c && c.toUserId === userId && c.createdAt && now - c.createdAt < 90 * 24 * 60 * 60 * 1000).length;
+    if (recentComplaints >= 2) return json(res, 403, { error: "user not eligible" });
+
+    const activeCount = requestClaims.filter((c) => c && c.claimerId === userId && c.status === "claimed").length;
+    if (activeCount >= MAX_ACTIVE_CLAIMS) return json(res, 400, { error: "too many active claims" });
+
     const existing = requestClaims.find((c) => c && c.requestId === r.id && c.claimerId === userId && c.status === "claimed");
     if (existing) return json(res, 200, { ok: true, duplicated: true, item: existing });
 
@@ -1363,7 +1427,10 @@ const server = http.createServer(async (req, res) => {
       ownerId: r.ownerId,
       claimerId: userId,
       status: "claimed",
-      createdAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
+      acknowledgedAt: 0,
+      expiredAt: 0,
       completedAt: 0,
       complainedAt: 0
     };
@@ -1386,6 +1453,8 @@ const server = http.createServer(async (req, res) => {
 
   const requestClaimsListMatch = url.pathname.match(/^\/requests\/([^/]+)\/claims$/);
   if (req.method === "GET" && requestClaimsListMatch) {
+    const now = Date.now();
+    autoExpireClaims(now);
     const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
     if (!userId) return json(res, 401, { error: "Unauthorized" });
     const id = decodeURIComponent(requestClaimsListMatch[1]);
@@ -1404,10 +1473,43 @@ const server = http.createServer(async (req, res) => {
         claimerDisplayName: ensureUser(c.claimerId).displayName,
         status: c.status,
         createdAt: c.createdAt,
+        updatedAt: c.updatedAt || c.createdAt,
+        acknowledgedAt: c.acknowledgedAt || 0,
+        expiredAt: c.expiredAt || 0,
         completedAt: c.completedAt || 0,
         complainedAt: c.complainedAt || 0
       }));
     return json(res, 200, { items });
+  }
+
+  const requestClaimAckMatch = url.pathname.match(/^\/requests\/([^/]+)\/claims\/([^/]+)\/ack$/);
+  if (req.method === "POST" && requestClaimAckMatch) {
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!userId) return json(res, 401, { error: "Unauthorized" });
+    const requestId = decodeURIComponent(requestClaimAckMatch[1]);
+    const claimId = decodeURIComponent(requestClaimAckMatch[2]);
+    const r = requests.find((x) => x.id === requestId);
+    if (!r) return json(res, 404, { error: "Not Found" });
+    const claim = requestClaims.find((c) => c && c.id === claimId && c.requestId === r.id);
+    if (!claim) return json(res, 404, { error: "Not Found" });
+    if (claim.claimerId !== userId) return json(res, 403, { error: "Forbidden" });
+    if (claim.status !== "claimed") return json(res, 400, { error: "cannot ack" });
+
+    markDirty();
+    const now = Date.now();
+    claim.acknowledgedAt = now;
+    claim.updatedAt = now;
+    notifications.push({
+      id: `n_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      toUserId: claim.ownerId,
+      type: "system",
+      title: "Claim acknowledged / 已响应",
+      content: `${ensureUser(userId).displayName}: ${r.title}`.slice(0, 500),
+      createdAt: now,
+      readAt: null,
+      data: { kind: "claimAck", requestId: r.id, claimId: claim.id, fromUserId: userId }
+    });
+    return json(res, 200, { ok: true });
   }
 
   const requestClaimCompleteMatch = url.pathname.match(/^\/requests\/([^/]+)\/claims\/([^/]+)\/complete$/);
@@ -1424,8 +1526,10 @@ const server = http.createServer(async (req, res) => {
     if (claim.status !== "claimed") return json(res, 400, { error: "cannot complete" });
 
     markDirty();
+    const now = Date.now();
     claim.status = "completed";
-    claim.completedAt = Date.now();
+    claim.completedAt = now;
+    claim.updatedAt = now;
 
     const stats = ensureUserStats(claim.claimerId);
     stats.points += Math.max(0, CLAIM_COMPLETE_POINTS);
@@ -1438,7 +1542,7 @@ const server = http.createServer(async (req, res) => {
       type: "system",
       title: "Claim completed / 抢单完成",
       content: `${ensureUser(r.ownerId).displayName}: ${r.title}`.slice(0, 500),
-      createdAt: Date.now(),
+      createdAt: now,
       readAt: null,
       data: { kind: "claimCompleted", requestId: r.id, claimId: claim.id, fromUserId: r.ownerId, pointsAwarded: CLAIM_COMPLETE_POINTS }
     });
@@ -1464,8 +1568,10 @@ const server = http.createServer(async (req, res) => {
     const reason = typeof body?.reason === "string" ? body.reason.trim().slice(0, 80) : "unknown";
 
     markDirty();
+    const now = Date.now();
     claim.status = "complained";
-    claim.complainedAt = Date.now();
+    claim.complainedAt = now;
+    claim.updatedAt = now;
 
     const item = {
       id: `cp_${Date.now()}_${Math.random().toString(16).slice(2)}`,
@@ -1474,7 +1580,7 @@ const server = http.createServer(async (req, res) => {
       fromUserId: userId,
       toUserId: claim.claimerId,
       reason,
-      createdAt: Date.now()
+      createdAt: now
     };
     requestComplaints.push(item);
 
@@ -1490,7 +1596,7 @@ const server = http.createServer(async (req, res) => {
       type: "system",
       title: "Complaint received / 被投诉",
       content: `${ensureUser(r.ownerId).displayName}: ${r.title} (${reason})`.slice(0, 500),
-      createdAt: Date.now(),
+      createdAt: now,
       readAt: null,
       data: { kind: "claimComplaint", requestId: r.id, claimId: claim.id, fromUserId: r.ownerId, reason, penaltyPoints: COMPLAINT_PENALTY_POINTS }
     });
@@ -2265,10 +2371,19 @@ function ensureUserStats(userId) {
     if (typeof existing.claimCompleteCount !== "number") existing.claimCompleteCount = 0;
     if (typeof existing.complaintCount !== "number") existing.complaintCount = 0;
     if (typeof existing.claimComplaintCount !== "number") existing.claimComplaintCount = 0;
+    if (typeof existing.claimExpiredCount !== "number") existing.claimExpiredCount = 0;
     return existing;
   }
   markDirty();
-  const s = { points: 0, introSuccessCount: 0, introFailCount: 0, claimCompleteCount: 0, complaintCount: 0, claimComplaintCount: 0 };
+  const s = {
+    points: 0,
+    introSuccessCount: 0,
+    introFailCount: 0,
+    claimCompleteCount: 0,
+    complaintCount: 0,
+    claimComplaintCount: 0,
+    claimExpiredCount: 0
+  };
   userStats.set(userId, s);
   return s;
 }
