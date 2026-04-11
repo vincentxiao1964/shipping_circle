@@ -70,6 +70,7 @@ const server = http.createServer(async (req, res) => {
         "GET /requests/:id",
         "PUT /requests/:id",
         "GET /requests/:id/recommend-introducers",
+        "POST /requests/:id/ping",
         "POST /requests/:id/introductions",
         "GET /tags",
         "GET /introductions",
@@ -1102,6 +1103,43 @@ const server = http.createServer(async (req, res) => {
       return { id: u.id, displayName: u.displayName, score: r.score, successCount: r.successCount };
     });
     return json(res, 200, { items });
+  }
+
+  const requestPingMatch = url.pathname.match(/^\/requests\/([^/]+)\/ping$/);
+  if (req.method === "POST" && requestPingMatch) {
+    const userId = getAuthUserId(req, tokenToUser, tokenMeta, userTokens);
+    if (!userId) return json(res, 401, { error: "Unauthorized" });
+    const id = decodeURIComponent(requestPingMatch[1]);
+    const r = requests.find((x) => x.id === id);
+    if (!r) return json(res, 404, { error: "Not Found" });
+    if (r.ownerId !== userId) return json(res, 403, { error: "Forbidden" });
+
+    const body = await readJson(req).catch(() => null);
+    const toUserId = typeof body?.toUserId === "string" ? body.toUserId.trim() : "";
+    if (!toUserId) return json(res, 400, { error: "toUserId required" });
+    if (toUserId === userId) return json(res, 400, { error: "cannot ping self" });
+
+    ensureUser(toUserId);
+    ensureUser(userId);
+
+    const exists = notifications.some(
+      (n) => n && n.type === "requestPing" && n.toUserId === toUserId && String(n.data?.requestId || "") === r.id && String(n.data?.fromUserId || "") === userId
+    );
+    if (exists) return json(res, 200, { ok: true, duplicated: true });
+
+    const owner = ensureUser(userId);
+    notifications.push({
+      id: `n_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      toUserId,
+      type: "requestPing",
+      title: "Request needs help / 求助提醒",
+      content: `${owner.displayName}: ${r.title}`.slice(0, 500),
+      createdAt: Date.now(),
+      readAt: null,
+      data: { requestId: r.id, fromUserId: userId, companyId: r.companyId || "", companyName: r.companyName || "", tags: Array.isArray(r.tags) ? r.tags : [] }
+    });
+    markDirty();
+    return json(res, 200, { ok: true, duplicated: false });
   }
 
   if (req.method === "PUT" && requestMatch) {

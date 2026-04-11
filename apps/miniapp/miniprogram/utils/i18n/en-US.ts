@@ -185,6 +185,8 @@ export const enUS = {
   "request.tags": "Businesses to find owners (comma separated)",
   "request.recommendIntro": "Recommended introducers",
   "request.viewProfile": "View profile",
+  "request.ping": "Ping",
+  "request.pingSent": "Pinged",
   "request.tagsPick": "Pick popular businesses",
   "request.tagsCustom": "Custom…",
   "request.businessRequired": "Select at least one business",

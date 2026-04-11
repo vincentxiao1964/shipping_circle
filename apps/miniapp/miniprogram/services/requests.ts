@@ -208,6 +208,19 @@ export async function getRecommendedIntroducers(requestId: string, limit = 5): P
   }
 }
 
+export async function pingIntroducer(requestId: string, toUserId: string): Promise<{ duplicated: boolean } | null> {
+  const id = requestId.trim();
+  const uid = String(toUserId || "").trim();
+  if (!id || !uid) return null;
+  try {
+    const res = await requestJson<{ ok: boolean; duplicated?: boolean }>("POST", `/requests/${encodeURIComponent(id)}/ping`, { toUserId: uid });
+    if (!res?.ok) return null;
+    return { duplicated: Boolean(res.duplicated) };
+  } catch {
+    return null;
+  }
+}
+
 async function tryListRemotePage(input: { limit: number; cursor?: string; mine?: boolean; tag?: string; company?: string }): Promise<PageResult<RequestListItem> | null> {
   try {
     const qs = buildQuery({

@@ -146,3 +146,66 @@ test("requests: owner contact visibility is respected", async () => {
     await stopServer(child);
   }
 });
+
+test("requests: ping creates notification and is idempotent", async () => {
+  const { child, port } = await startServer({ PORT: "0", TOKEN_TTL_MS: "60000", REFRESH_GRACE_MS: "60000" });
+  try {
+    const base = `http://localhost:${port}`;
+
+    const owner = await fetch(`${base}/auth/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "owner_ping" })
+    }).then((r) => r.json());
+    const target = await fetch(`${base}/auth/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "target_ping" })
+    }).then((r) => r.json());
+
+    const reqResp = await fetch(`${base}/requests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${owner.token}` },
+      body: JSON.stringify({ title: "need owner", companyName: "Demo Co", content: "x", tags: ["订舱"] })
+    });
+    assert.equal(reqResp.status, 201);
+    const created = await reqResp.json();
+    const requestId = created.item.id;
+    assert.ok(requestId);
+
+    const pingResp = await fetch(`${base}/requests/${encodeURIComponent(requestId)}/ping`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${owner.token}` },
+      body: JSON.stringify({ toUserId: target.user.id })
+    });
+    assert.equal(pingResp.status, 200);
+    const ping1 = await pingResp.json();
+    assert.equal(ping1.ok, true);
+    assert.equal(ping1.duplicated, false);
+
+    const notifResp = await fetch(`${base}/notifications`, { headers: { Authorization: `Bearer ${target.token}` } });
+    assert.equal(notifResp.status, 200);
+    const notifs = await notifResp.json();
+    assert.ok(Array.isArray(notifs.items));
+    assert.ok(notifs.items.some((n) => n.type === "requestPing" && n.data?.requestId === requestId));
+
+    const pingResp2 = await fetch(`${base}/requests/${encodeURIComponent(requestId)}/ping`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${owner.token}` },
+      body: JSON.stringify({ toUserId: target.user.id })
+    });
+    assert.equal(pingResp2.status, 200);
+    const ping2 = await pingResp2.json();
+    assert.equal(ping2.ok, true);
+    assert.equal(ping2.duplicated, true);
+
+    const notifResp2 = await fetch(`${base}/notifications`, { headers: { Authorization: `Bearer ${target.token}` } });
+    assert.equal(notifResp2.status, 200);
+    const notifs2 = await notifResp2.json();
+    const count = (notifs.items || []).filter((n) => n.type === "requestPing" && n.data?.requestId === requestId).length;
+    const count2 = (notifs2.items || []).filter((n) => n.type === "requestPing" && n.data?.requestId === requestId).length;
+    assert.equal(count2, count);
+  } finally {
+    await stopServer(child);
+  }
+});

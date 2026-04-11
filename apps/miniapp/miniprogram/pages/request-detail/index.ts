@@ -1,7 +1,8 @@
 import { getToken } from "../../services/api";
 import { getUserId } from "../../services/auth";
 import { confirmContact, invalidateContact, matchContacts, updateContact, type ContactMatchGroup } from "../../services/contacts";
-import { getRequest, updateRequest, resolveIntroduction, submitIntroduction, type RequestDetail } from "../../services/requests";
+import { getIsFollowing, toggleFollow } from "../../services/follows";
+import { getRecommendedIntroducers, getRequest, pingIntroducer, updateRequest, resolveIntroduction, submitIntroduction, type RequestDetail } from "../../services/requests";
 import { syncPageI18n, t, type MessageKey } from "../../utils/i18n";
 
 const I18N_KEYS = [
@@ -52,6 +53,10 @@ const I18N_KEYS = [
   "request.tags",
   "request.recommendIntro",
   "request.viewProfile",
+  "request.ping",
+  "request.pingSent",
+  "user.follow",
+  "user.unfollow",
   "request.ownerContactChannel",
   "request.success",
   "request.fail",
@@ -70,7 +75,7 @@ Page({
     id: "",
     meUserId: "",
     item: null as RequestDetail | null,
-    recommend: [] as { id: string; displayName: string; score: number; successCount: number }[],
+    recommend: [] as { id: string; displayName: string; score: number; successCount: number; isFollowing: boolean }[],
     contactGroups: [] as ContactMatchGroup[],
     contactLoading: false,
     loading: false
@@ -320,14 +325,23 @@ Page({
         this.setData({ item });
         return this.loadContacts(item);
       })
-      .then(async () => {
-        try {
-          const mod = await import("../../services/requests");
-          const rec = await mod.getRecommendedIntroducers(this.data.id, 5);
-          this.setData({ recommend: rec });
-        } catch {
+      .then(() => {
+        if (!getToken()) {
           this.setData({ recommend: [] });
+          return;
         }
+        if (!this.data.item?.isMine) {
+          this.setData({ recommend: [] });
+          return;
+        }
+        return getRecommendedIntroducers(this.data.id, 5)
+          .then((rec) => {
+            const next = rec.map((u) => ({ ...u, isFollowing: getIsFollowing(u.id) }));
+            this.setData({ recommend: next });
+          })
+          .catch(() => {
+            this.setData({ recommend: [] });
+          });
       })
       .catch(() => {
         this.setData({ item: null });
@@ -340,6 +354,39 @@ Page({
     const id = (e.currentTarget as any)?.dataset?.id as string | undefined;
     if (!id) return;
     wx.navigateTo({ url: `/pages/user/index?id=${encodeURIComponent(id)}` });
+  },
+  onTapToggleFollowUser(e: WechatMiniprogram.BaseEvent) {
+    const id = (e.currentTarget as any)?.dataset?.id as string | undefined;
+    if (!id) return;
+    if (!getToken()) {
+      wx.navigateTo({ url: "/pages/login/index" });
+      return;
+    }
+    toggleFollow(id)
+      .then((following) => {
+        const next = (this.data.recommend || []).map((u) => (u.id === id ? { ...u, isFollowing: following } : u));
+        this.setData({ recommend: next });
+      })
+      .catch(() => {
+        wx.showToast({ title: t("common.failed"), icon: "none" });
+      });
+  },
+  onTapPingUser(e: WechatMiniprogram.BaseEvent) {
+    const id = (e.currentTarget as any)?.dataset?.id as string | undefined;
+    if (!id) return;
+    if (!this.data.item?.isMine) return;
+    if (!getToken()) {
+      wx.navigateTo({ url: "/pages/login/index" });
+      return;
+    }
+    pingIntroducer(this.data.id, id)
+      .then((res) => {
+        if (!res) throw new Error("failed");
+        wx.showToast({ title: t("request.pingSent"), icon: "success" });
+      })
+      .catch(() => {
+        wx.showToast({ title: t("common.failed"), icon: "none" });
+      });
   },
   loadContacts(item: RequestDetail | null) {
     if (!item?.companyId && !item?.companyName) {
