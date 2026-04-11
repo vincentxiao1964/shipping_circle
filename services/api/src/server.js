@@ -25,6 +25,10 @@ const CONTACT_STALE_MS = Number(process.env.CONTACT_STALE_MS || 90 * 24 * 60 * 6
 const CONTACT_ENDORSE_VERIFY_N = Number(process.env.CONTACT_ENDORSE_VERIFY_N || 2);
 const ADMIN_KEY = String(process.env.ADMIN_KEY || "").trim();
 const ADMIN_NOTIFY_USER_ID = String(process.env.ADMIN_NOTIFY_USER_ID || "").trim();
+const WX_APPID = String(process.env.WX_APPID || "").trim();
+const WX_SECRET = String(process.env.WX_SECRET || "").trim();
+const HAS_WX_CREDS = Boolean(WX_APPID && WX_SECRET);
+const ALLOW_DEV_MOCK_OPENID = String(process.env.ALLOW_DEV_MOCK_OPENID || "") === "1" || !HAS_WX_CREDS;
 
 const server = http.createServer(async (req, res) => {
   setCors(res);
@@ -113,7 +117,8 @@ const server = http.createServer(async (req, res) => {
     const code = body?.code;
     if (!code || typeof code !== "string") return json(res, 400, { error: "code required" });
 
-    const openid = await getWeChatOpenId(code);
+    const mockOpenId = typeof body?.mockOpenId === "string" ? body.mockOpenId.trim() : "";
+    const openid = !HAS_WX_CREDS && ALLOW_DEV_MOCK_OPENID && mockOpenId ? mockOpenId.slice(0, 120) : await getWeChatOpenId(code);
     const userId = `u_${hash(openid)}`;
     revokeAllUserTokens(userId, tokenToUser, tokenMeta, userTokens);
     const { token, expiresAt } = issueTokenForUser(userId);
@@ -2518,8 +2523,8 @@ function hash(input) {
 }
 
 async function getWeChatOpenId(code) {
-  const appid = String(process.env.WX_APPID || "").trim();
-  const secret = String(process.env.WX_SECRET || "").trim();
+  const appid = WX_APPID;
+  const secret = WX_SECRET;
   if (!appid || !secret) return `mock_${hash(code)}`;
 
   const url = new URL("https://api.weixin.qq.com/sns/jscode2session");
